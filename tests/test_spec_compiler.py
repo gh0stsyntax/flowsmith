@@ -140,3 +140,16 @@ def test_every_toolbox_activity_compiles_to_well_formed_xml():
     from src.generation.activity_templates import activity_types_for_full_toolbox
     for t in activity_types_for_full_toolbox():
         ET.fromstring(SpecCompiler().compile(_spec(category="web_automation", activities=[(t, {})])).split("?>", 1)[1])
+
+
+def test_object_members_on_string_variables_are_removed():
+    """LLM wrote [read_file.Content] / [read_csv].Content on String variables -> Studio BC30456 (24 Nov 2026)."""
+    from src.generation.spec_compiler import strip_members_on_strings
+    xml = ('<ui:SendMail Body="[read_file.Content]" /><InArgument>[JsonConvert.DeserializeObject([read_csv].Content)]</InArgument>'
+           '<x a="[other.Content]" /><x b="[my_read_file.Content]" /><x c="[read_file.ContentLength]" />')
+    out = strip_members_on_strings(xml, ["read_file", "read_csv"])
+    assert 'Body="[read_file]"' in out
+    assert "DeserializeObject(read_csv)" in out
+    assert "other.Content" in out                    # unknown / non-string names stay untouched
+    assert "my_read_file.Content" in out             # prefix of a longer name must not match
+    assert "read_file.ContentLength" in out          # word boundary

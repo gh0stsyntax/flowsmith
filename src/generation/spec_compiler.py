@@ -152,6 +152,22 @@ def _identifiers_in_expressions(xml_text: str) -> List[str]:
     return found
 
 
+_STRING_MEMBERS = ("Content", "Text", "Value", "Result", "Output", "Data")
+
+
+def strip_members_on_strings(xml_text: str, string_vars: List[str]) -> str:
+    """`[read_file.Content]` / `[read_csv].Content` on a String variable -> the variable itself.
+    The LLM treats Read Text File's output like an object; Studio rejects it (BC30456 'Content' is not a member of
+    'String'). Found by the 24 Nov 2026 command-line run: 2 of 5 fresh tasks failed to build for this reason."""
+    import re as _re
+    members = "|".join(_STRING_MEMBERS)
+    for name in sorted(set(string_vars), key=len, reverse=True):
+        n = _re.escape(name)
+        xml_text = _re.sub(rf"\[{n}\]\.(?:{members})\b", name, xml_text)                 # [var].Content
+        xml_text = _re.sub(rf"(?<![\w.]){n}\.(?:{members})\b", name, xml_text)           # var.Content
+    return xml_text
+
+
 def vb_string(text: str) -> str:
     """Plain text -> VB string expression in an XML attribute, e.g. [&quot;Start&quot;]."""
     from xml.sax.saxutils import escape as _esc
@@ -346,6 +362,7 @@ class SpecCompiler:
         self._auto_declare(ws, acts_xml)
         if len(ws.variables) != before:                 # Assign types depend on declarations -> render again
             acts_xml = self._build_activities(ws)
+        acts_xml = strip_members_on_strings(acts_xml, [v.name for v in ws.variables if v.type == "x:String"])
         var_xml   = self._build_variables(ws)
 
         # Argument-Werte als lesbare Liste für den Start-Log
