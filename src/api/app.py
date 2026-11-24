@@ -4,12 +4,8 @@ REST API für das UiPath XAML ML System
 """
 
 from flask import Flask, request, jsonify, send_file
-try:
-    from flask_cors import CORS
-    _HAS_CORS = True
-except ImportError:
-    _HAS_CORS = False
 import logging
+import re
 import os
 import json
 import time
@@ -18,6 +14,19 @@ import zipfile
 import yaml
 
 logger = logging.getLogger(__name__)
+
+_MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")   # no leading '-' (option injection), no spaces/shell characters
+DEFAULT_CORS_ORIGINS = ("http://localhost:7860", "http://127.0.0.1:7860")
+
+
+def inside(base: Path, candidate) -> bool:
+    """True only if `candidate` resolves to a location inside `base`. Resolving first is the point: a plain
+    str.startswith() on the unresolved path accepts 'base/../../secret' (path traversal)."""
+    try:
+        Path(candidate).resolve().relative_to(Path(base).resolve())
+        return True
+    except (ValueError, OSError):
+        return False
 
 
 def create_app(config_path: str = "config/config.yaml") -> Flask:
@@ -32,27 +41,39 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     # Desktop-Kontext) nicht zuverlässig denselben Storage teilen.
     _last_generation = {}
     
-    # CORS: unconditional – UI runs on port 7860, API on 5000
-    if _HAS_CORS:
-        CORS(app, resources={r"/*": {"origins": "*"}})
-    else:
-        # Manual CORS headers as fallback
-        @app.after_request
-        def add_cors(response):
-            response.headers["Access-Control-Allow-Origin"] = "*"
+    # CORS: only the project's own UI origin(s); configurable via api.cors_origins. Never '*': the API has no
+    # authentication, so any web page the user visits could otherwise drive it from their browser.
+    allowed_origins = set((config.get('api') or {}).get('cors_origins') or DEFAULT_CORS_ORIGINS)
+
+    @app.after_request
+    def add_cors(response):
+        origin = request.headers.get("Origin")
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-            return response
+            response.headers["Vary"] = "Origin"
+        return response
 
     @app.route("/", methods=["OPTIONS"])
     @app.route("/<path:p>", methods=["OPTIONS"])
     def options_handler(p=""):
         from flask import Response
-        r = Response()
-        r.headers["Access-Control-Allow-Origin"] = "*"
-        r.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        return r, 200
+        return Response(status=204)
+
+    # Directories a client may name in a request must stay inside the data tree (default: ./data).
+    data_root = Path(config['training']['data_dir']).resolve().parent
+
+    def safe_dir(value, default):
+        """Directory from a request: default if absent, otherwise it must resolve inside data_root."""
+        chosen = Path(value) if value else Path(default)
+        if not inside(data_root, chosen):
+            raise ValueError("directory outside the project data folder")
+        return str(chosen)
+
+    @app.errorhandler(ValueError)
+    def bad_value(e):
+        return jsonify({'success': False, 'error': str(e)}), 400
     
     # Lazy-load heavy components
     _generator = None
@@ -200,8 +221,8 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     @app.route('/api/training/preprocess', methods=['POST'])
     def preprocess():
         data = request.get_json() or {}
-        input_dir = data.get('input_dir', config['training']['data_dir'])
-        output_dir = data.get('output_dir', config['training']['processed_dir'])
+        input_dir = safe_dir(data.get('input_dir'), config['training']['data_dir'])
+        output_dir = safe_dir(data.get('output_dir'), config['training']['processed_dir'])
         try:
             from src.training.preprocessor import XAMLPreprocessor
             preprocessor = XAMLPreprocessor(config_path)
@@ -213,8 +234,10 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     @app.route('/api/training/build-model', methods=['POST'])
     def build_model():
         data = request.get_json() or {}
-        training_data = data.get('training_data', config['training']['processed_dir'])
+        training_data = safe_dir(data.get('training_data'), config['training']['processed_dir'])
         model_name = data.get('model_name', config['ollama']['finetuned_model'])
+        if not _MODEL_NAME.match(str(model_name)):
+            return jsonify({'success': False, 'error': 'invalid model name'}), 400
         try:
             from src.training.trainer import OllamaTrainer
             trainer = OllamaTrainer(config_path)
@@ -250,15 +273,15 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     
     @app.route('/api/download/<path:filename>', methods=['GET'])
     def download(filename):
-        output_dir = Path(config['generation']['output_dir'])
-        file_path = output_dir / filename
-        if not file_path.exists() or not str(file_path).startswith(str(output_dir)):
+        output_dir = Path(config['generation']['output_dir']).resolve()
+        file_path = (output_dir / filename).resolve()
+        if not inside(output_dir, file_path) or not file_path.is_file():
             return jsonify({'error': 'Datei nicht gefunden'}), 404
         return send_file(file_path, as_attachment=True)
 
     @app.route('/api/download-project', methods=['POST'])
     def download_project():
-        output_dir = Path(config['generation']['output_dir'])
+        output_dir = Path(config['generation']['output_dir']).resolve()
         data = request.get_json() or {}
         xaml_filename = data.get("xaml_filename")
         meta_filename = data.get("meta_filename")
@@ -269,7 +292,7 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
             meta_path = xaml_path.with_suffix(".json")
         else:
             meta_path = output_dir / meta_filename
-        if not meta_path.exists() or not str(meta_path).startswith(str(output_dir)):
+        if not inside(output_dir, meta_path) or not meta_path.is_file():
             return jsonify({'error': 'Datei nicht gefunden'}), 404
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
@@ -596,8 +619,8 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
         data = request.get_json() or {}
         mode = data.get('mode', 'preprocess')
         if mode == 'synthetic':
-            data_dir = data.get('data_dir', config['training']['data_dir'])
-            samples = data.get('samples', 10)
+            data_dir = safe_dir(data.get('data_dir'), config['training']['data_dir'])
+            samples = int(data.get('samples', 10))
             try:
                 from src.generation.ollama_client import OllamaClient
                 from src.training.preprocessor import SyntheticDataGenerator
@@ -610,7 +633,7 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
             except Exception as e:
                 return jsonify({'success': False, 'error': str(e)}), 500
         elif mode == 'preprocess':
-            input_dir = data.get('data_dir', config['training']['data_dir'])
+            input_dir = safe_dir(data.get('data_dir'), config['training']['data_dir'])
             output_dir = config['training']['processed_dir']
             try:
                 from src.training.preprocessor import XAMLPreprocessor
@@ -621,6 +644,8 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
                 return jsonify({'success': False, 'error': str(e)}), 500
         elif mode == 'build':
             model_name = data.get('model_name', config['ollama']['finetuned_model'])
+            if not _MODEL_NAME.match(str(model_name)):
+                return jsonify({'success': False, 'error': 'invalid model name'}), 400
             try:
                 from src.training.trainer import OllamaTrainer
                 trainer = OllamaTrainer()
@@ -634,13 +659,16 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     @app.route('/api/build-pairs', methods=['POST'])
     def build_pairs():
         data = request.get_json() or {}
-        processed_dir = data.get("processed_dir") or config["training"]["processed_dir"]
-        out_dir = data.get("out_dir") or config["training"]["processed_dir"]
-        k = int(data.get("k_per_sample") or 2)
+        processed_dir = safe_dir(data.get("processed_dir"), config["training"]["processed_dir"])
+        out_dir = safe_dir(data.get("out_dir"), config["training"]["processed_dir"])
+        k = max(1, min(int(data.get("k_per_sample") or 2), 20))
         try:
-            from src.training.pair_builder import PseudoPairBuilder
-            b = PseudoPairBuilder(config_path)
-            stats = b.build(processed_dir=processed_dir, out_dir=out_dir, k_per_sample=k)
+            # The endpoint used to import a class that does not exist (PseudoPairBuilder) and always failed.
+            from src.training.pair_builder import build_pairs as make_pairs
+            source = Path(processed_dir) / "train.jsonl"     # the quality-checked sources written by /api/training/preprocess
+            if not source.is_file():
+                return jsonify({"success": False, "error": "no train.jsonl in processed_dir; run preprocessing first"}), 400
+            stats = make_pairs(input_file=str(source), output_dir=out_dir, max_per_source=k)
             return jsonify({"success": True, **stats})
         except Exception as e:
             logger.error("build_pairs error: %s", e)
@@ -649,7 +677,7 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     @app.route('/api/convert-pairs', methods=['POST'])
     def convert_pairs():
         data = request.get_json() or {}
-        processed_dir = Path(data.get("processed_dir") or config["training"]["processed_dir"])
+        processed_dir = Path(safe_dir(data.get("processed_dir"), config["training"]["processed_dir"]))
         try:
             from src.training.pairs_to_finetune import convert_pairs_to_chat_jsonl
 
@@ -673,4 +701,5 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     
     app = create_app()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Never debug=True here: the Werkzeug debugger allows code execution for anyone who can reach the port.
+    app.run(host=os.environ.get("XAMLML_HOST", "127.0.0.1"), port=5000, debug=False)

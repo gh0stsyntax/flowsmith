@@ -1,7 +1,16 @@
-import sys
-import os
+"""Generate a UiPath workflow (XAML) from a plain-language task with a local LLM (Ollama).
+
+Default strategy is the one verified to build in UiPath Studio: two-phase generation (LLM writes a spec,
+a deterministic compiler writes the XAML) followed by targeted repair. `--strategy baseline` keeps the old
+direct generation, which the benchmark shows is much weaker.
+
+    python scripts/generate.py --task "Move every PDF from an inbox folder to an archive folder" --output out.xaml --validate
+"""
 import argparse
 import logging
+import os
+import re
+import sys
 from pathlib import Path
 
 os.chdir(Path(__file__).parent.parent)
@@ -11,93 +20,104 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 
-def main():
-    parser = argparse.ArgumentParser(description='UiPath XAML Generator')
-    parser.add_argument('--task', type=str, help='Aufgabenbeschreibung')
-    parser.add_argument('--category', type=str, help='Kategorie (optional)')
-    parser.add_argument('--requirements', type=str, help='Zusätzliche Anforderungen')
-    parser.add_argument('--output', type=str, help='Ausgabepfad für XAML')
-    parser.add_argument('--attempts', type=int, default=3, help='Max. Versuche')
-    parser.add_argument('--validate', action='store_true', help='Validierung anzeigen')
-    parser.add_argument('--llm-review', action='store_true', help='LLM-Review aktivieren')
-    parser.add_argument('--batch', type=str, help='Datei mit Aufgaben (eine pro Zeile)')
-    parser.add_argument('--quiet', action='store_true', help='Nur XAML ausgeben')
-    args = parser.parse_args()
+def build_parser():
+    parser = argparse.ArgumentParser(description='UiPath XAML Generator (local LLM)')
+    parser.add_argument('--task', type=str, help='Task description (plain language)')
+    parser.add_argument('--category', type=str, help='Category (optional, auto-detected)')
+    parser.add_argument('--requirements', type=str, help='Additional requirements')
+    parser.add_argument('--output', type=str, help='Write the XAML to this path')
+    parser.add_argument('--attempts', type=int, default=3, help='Max. attempts')
+    parser.add_argument('--strategy', choices=['two-phase', 'baseline'], default='two-phase',
+                        help='two-phase = spec -> compiler (+ repair), default; baseline = direct generation')
+    parser.add_argument('--no-repair', action='store_true', help='skip the targeted repair step (two-phase only)')
+    parser.add_argument('--validate', action='store_true', help='print the validation report')
+    parser.add_argument('--llm-review', action='store_true', help='enable LLM review (baseline only)')
+    parser.add_argument('--batch', type=str, help='File with tasks (one per line, # = comment)')
+    parser.add_argument('--quiet', action='store_true', help='print only the XAML')
+    return parser
+
+
+def generate_two_phase(task, args):
+    from src.generation.surgical_repair import SurgicalRepair
+    from src.generation.two_phase_generator import TwoPhaseGenerator
+    result = TwoPhaseGenerator().generate(task_description=task, category=args.category,
+                                          additional_requirements=args.requirements, max_spec_attempts=args.attempts)
+    xaml, validation = result['xaml_content'], result['validation']
+    if not args.no_repair:
+        name = (re.search(r'x:Class="([^"]+)"', xaml) or [None, 'Workflow'])[1]
+        xaml, _report, validation = SurgicalRepair().repair_and_validate(xaml, name)
+    return {'xaml_content': xaml, 'validation': validation, 'score': validation.get('total_score', result.get('score', 0)),
+            'attempt': 1, 'output_path': result.get('output_path'), 'suggestions': validation.get('suggestions', [])}
+
+
+def generate_baseline(task, args):
+    from src.generation.generator import XAMLGenerator
+    return XAMLGenerator().generate(task_description=task, category=args.category,
+                                    additional_requirements=args.requirements, max_attempts=args.attempts)
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
     if not args.task and not args.batch:
         parser.print_help()
-        sys.exit(1)
+        return 1
 
-    from src.generation.generator import XAMLGenerator
-    from src.validation.validator import XAMLValidator
-    
-    generator = XAMLGenerator()
-    validator = XAMLValidator() if args.validate else None
+    def process_task(task):
+        if not args.quiet:
+            logger.info(f"Generating ({args.strategy}): {task[:80]}...")
+        result = (generate_two_phase if args.strategy == 'two-phase' else generate_baseline)(task, args)
 
-    def process_task(task: str):
         if not args.quiet:
-            logger.info(f"🎯 Generiere: {task[:80]}...")
-        
-        result = generator.generate(
-            task_description=task,
-            category=args.category,
-            additional_requirements=args.requirements,
-            max_attempts=args.attempts
-        )
-        
-        if not args.quiet:
-            score = result['score']
-            emoji = "✅" if result['validation']['passed'] else "⚠️"
-            logger.info(f"{emoji} Score: {score}/100 | Versuche: {result['attempt']}")
-        
+            mark = "OK" if result['validation'].get('passed') else "WARN"
+            logger.info(f"{mark} score {result['score']}/100 | attempts: {result.get('attempt', 1)}")
+
         if args.output:
-            with open(args.output, 'w', encoding='utf-8') as f:
-                f.write(result['xaml_content'])
+            Path(args.output).write_text(result['xaml_content'], encoding='utf-8')
             if not args.quiet:
-                logger.info(f"💾 Gespeichert: {args.output}")
+                logger.info(f"Saved: {args.output}")
         elif args.quiet:
             print(result['xaml_content'])
-        else:
-            logger.info(f"💾 Gespeichert: {result.get('output_path')}")
-        
+        elif result.get('output_path'):
+            logger.info(f"Saved: {result['output_path']}")
+
         if args.validate and not args.quiet:
             val = result['validation']
-            print("\n─── Validierungs-Report ───")
-            if val['errors']:
-                for e in val['errors']:
-                    print(f"❌ {e}")
-            if val['warnings']:
-                for w in val['warnings'][:5]:
-                    print(f"⚠️  {w}")
-            if result.get('suggestions'):
-                for s in result['suggestions'][:3]:
-                    print(f"💡 {s}")
-        
+            print("\n--- Validation report ---")
+            for e in val.get('errors', []):
+                print(f"ERROR   {e}")
+            for w in val.get('warnings', [])[:5]:
+                print(f"WARNING {w}")
+            for s in (result.get('suggestions') or [])[:3]:
+                print(f"HINT    {s}")
         return result
 
-    # Einzel-Task
-    if args.task:
-        process_task(args.task)
-    
-    # Batch-Modus
-    elif args.batch:
-        batch_file = Path(args.batch)
-        if not batch_file.exists():
-            logger.error(f"Datei nicht gefunden: {args.batch}")
-            sys.exit(1)
-        
-        tasks = [line.strip() for line in batch_file.read_text().splitlines() 
-                 if line.strip() and not line.startswith('#')]
-        
-        logger.info(f"📦 Batch-Modus: {len(tasks)} Aufgaben")
-        
-        for i, task in enumerate(tasks, 1):
-            logger.info(f"\n[{i}/{len(tasks)}] {task[:60]}...")
-            try:
-                process_task(task)
-            except Exception as e:
-                logger.error(f"❌ Fehler: {e}")
+    try:
+        if args.task:
+            process_task(args.task)
+        else:
+            batch_file = Path(args.batch)
+            if not batch_file.exists():
+                logger.error(f"File not found: {args.batch}")
+                return 1
+            tasks = [l.strip() for l in batch_file.read_text(encoding='utf-8').splitlines()
+                     if l.strip() and not l.startswith('#')]
+            logger.info(f"Batch mode: {len(tasks)} tasks")
+            failed = 0
+            for i, task in enumerate(tasks, 1):
+                logger.info(f"[{i}/{len(tasks)}] {task[:60]}...")
+                try:
+                    process_task(task)
+                except Exception as e:  # one failing task must not stop the batch
+                    failed += 1
+                    logger.error(f"Failed: {e}")
+            return 1 if failed else 0
+    except RuntimeError as e:
+        logger.error(f"Generation failed: {e}")
+        return 1
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
