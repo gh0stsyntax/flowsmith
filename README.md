@@ -50,14 +50,26 @@ An earlier run (18 June, 8 tasks, different model settings) was much weaker for 
 | Check | Result |
 |---|---|
 | Compiler, 6 activity groups (core/assign, files, Excel, mail, web, HTTP) | **6/6 build** |
-| End-to-end, plain-language task → local LLM (qwen3:14b) → XAML → UiPath build | **5/5 build** (PDF archive, REST status check, CSV → Excel, file → mail, web search) |
-| Regression tests (`tests/`, no UiPath needed) | 20 passed; a GitHub Actions workflow runs them on Python 3.10 and 3.12 (verified locally in a clean environment with only `pytest`, `pyyaml`, `requests`) |
+| End-to-end, 5 tasks I developed against → local LLM (qwen3:14b) → XAML → UiPath build | 5/5 build (PDF archive, REST status check, CSV → Excel, file → mail, web search) — **optimistic**, I tuned the compiler on these |
+| End-to-end, the same 5 task types re-run from the command line, 3 rounds, no tuning in between | **11–12 of 15 build (73–80 %)**; the model is not deterministic, so ±2 per round is noise at this sample size |
+| Compiler with `If` / `ForEach` / JSON access (hand-written spec, no LLM) | builds, 0 placeholders |
+| Regression tests (`tests/`, no UiPath, no LLM) | 56 passed; GitHub Actions runs them on Python 3.10 and 3.12 |
 
-Each of the five workflows was generated from one German sentence; the specs are stored next to the XAML in
-`examples/generated/`. Before the fixes, 0 of 5 loaded. Building is **not** the same as running: selectors are
-placeholders, credentials/servers are examples, and the process logic still needs a human review in Studio.
-The task descriptions were *not* tuned to the compiler; one extra task (the CSV one) failed twice with model-side
-problems (C# syntax in a VB project, invalid JSON) before generic fixes made it work — those fixes are covered by tests.
+Building is **not** the same as running: selectors are placeholders, credentials/servers are examples, and the
+process logic needs a human review in Studio.
+
+**Known limits (measured on 24 Nov 2026):**
+
+- Roughly one in four generated workflows still fails the UiPath build. Typical causes: a JSON value used as `Object`
+  where `String` is required, a `String` used where a list is expected, Excel/DataTable type mismatches.
+- Activity types the compiler does not implement become a visible `[TODO: Implementieren]` log step instead of silent
+  nothing: 8 such steps in 15 files. `examples/generated/api_status.xaml` contains two of them.
+- `If` and `ForEach` are compiled (child steps are referenced by id), but the prompt does not teach the model that
+  format. I tried a longer prompt that did: it scored 7/15, worse than before, and I dropped it
+  (small sample, so "probably worse" rather than proven). A better route is probably few-shot examples or
+  constrained JSON output; not done.
+- Fine-tuning was only tried on a very small dataset; the benchmark effect comes from the two-phase design.
+- The desktop app and the web UI were not click-tested; the API is covered by `tests/test_api_security.py`.
 
 ## What is (and isn't) in this repository
 
@@ -68,6 +80,19 @@ problems (C# syntax in a VB project, invalid JSON) before generic fixes made it 
 
 The training set was small (10 workflows → 9 accepted, 1 fine-tuning grade, 25 repair pairs), which is the main limitation of the fine-tuning part.
 The strongest effect in the benchmark comes from the **two-phase spec → compiler design**, not from fine-tuning.
+
+## Security notes (found by testing a fresh clone, fixed 24 Nov 2026)
+
+The local API used to have real holes; `tests/test_api_security.py` (23 cases, 21 of them fail on the old code) now pins the fixes:
+
+- `/api/download*`: the old check was `startswith()` on an unresolved path, so `..` escaped the output folder. Now `resolve()` + `relative_to()`.
+- CORS: was open to every origin; now only the local UI origins (configurable in `config.yaml`).
+- Training endpoints accepted arbitrary directories; now confined to the data root.
+- Model names are validated before they reach Ollama (no leading `-`, no spaces/shell characters).
+- The server binds to `127.0.0.1` by default and no longer runs with `debug=True`.
+- `scripts/start_system.py --help` used to start servers and pull a 4 GB model; it now has real argument parsing and `--pull-model` is opt-in.
+
+There is no authentication: this is a local tool. Do not expose it to a network.
 
 ## Quick start
 

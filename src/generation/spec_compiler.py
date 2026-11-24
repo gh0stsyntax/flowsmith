@@ -152,6 +152,18 @@ def _identifiers_in_expressions(xml_text: str) -> List[str]:
     return found
 
 
+_CONTROL_TYPES = ("If", "ForEach")
+
+
+def _ids(value: Any) -> List[str]:
+    return [str(i) for i in value] if isinstance(value, list) else []
+
+
+def _child_ids(act: Any) -> List[str]:
+    props = act.props or {}
+    return _ids(props.get("then")) + _ids(props.get("else")) + _ids(props.get("body"))
+
+
 _STRING_MEMBERS = ("Content", "Text", "Value", "Result", "Output", "Data")
 
 
@@ -426,6 +438,7 @@ class SpecCompiler:
         act_map: Dict[str, WorkflowActivity] = {a.id: a for a in ws.activities}
         order    = ws.activity_order or [a.id for a in ws.activities]
         parts: List[str] = []
+        nested = {i for a in ws.activities if a.type in _CONTROL_TYPES for i in _child_ids(a)}   # rendered inside If/ForEach
 
         # UI activities after OpenBrowser go INTO the browser scope with partial selectors.
         # Flat placement with full <html app=...> selectors fails Studio's analyzer (UI-DBP-006, error level).
@@ -436,7 +449,10 @@ class SpecCompiler:
 
         for act_id in order:
             act = act_map.get(act_id)
-            if act is None:
+            if act is None or act_id in nested:
+                continue
+            if act.type in _CONTROL_TYPES:
+                parts.append(self._render_control(act, ws, act_map, 0))
                 continue
 
             props = dict(act.props or {})
@@ -478,6 +494,58 @@ class SpecCompiler:
             '      <ui:LogMessage DisplayName="Hauptlogik (TODO)" '
             f'Level="Warn" Message="{vb_string("Keine Aktivitäten im Spec definiert")}" />'
         )
+
+    def _render_children(self, ids: List[str], ws: WorkflowSpec, act_map: Dict[str, WorkflowActivity], depth: int) -> str:
+        out: List[str] = []
+        for i in ids:
+            a = act_map.get(i)
+            if a is None:
+                continue
+            if a.type in _CONTROL_TYPES:
+                out.append(self._render_control(a, ws, act_map, depth + 1))
+                continue
+            props = dict(a.props or {})
+            if a.type == "Assign" and not props.get("type"):
+                ziel = str(props.get("to") or "").strip("[] ")
+                typen = {v.name: v.type for v in ws.variables}
+                typen.update({x.name: x.type for x in ws.arguments})
+                if ziel in typen:
+                    props["type"] = xaml_type(typen[ziel])
+            frag = render_activity_xml(a.type, a.display_name, props)
+            if frag is None:
+                dn = a.display_name or a.type
+                frag = (f'      <ui:LogMessage DisplayName="{_attr(dn)} [TODO: Implementieren]" Level="Warn" '
+                        f'Message="{vb_string(f"[{ws.name}] SCHRITT AUSSTEHEND: {dn} ({a.type})")}" />')
+            out.append(frag)
+        return "\n".join(out)
+
+    def _render_control(self, act: WorkflowActivity, ws: WorkflowSpec, act_map: Dict[str, WorkflowActivity], depth: int) -> str:
+        """If / ForEach with child activities given by id: props.then / props.else (If), props.body (ForEach)."""
+        from src.generation.activity_templates import csharp_to_vb, _expr, _a
+        props = act.props or {}
+        dn = _attr(act.display_name or act.type)
+        if depth > 4:                                           # guard against self-referencing specs
+            return f'      <ui:LogMessage DisplayName="{dn} [zu tief verschachtelt]" Level="Warn" Message="{vb_string("zu tief verschachtelt")}" />'
+        has_children = any(_ids(props.get(k)) and any(i in act_map for i in _ids(props.get(k))) for k in ("then", "else", "body"))
+        if not has_children:                                    # never emit an empty branch/loop silently
+            return (f'      <ui:LogMessage DisplayName="{dn} [TODO: Implementieren]" Level="Warn" '
+                    f'Message="{vb_string(f"[{ws.name}] SCHRITT AUSSTEHEND: {act.display_name or act.type} ({act.type}) ohne Inhalt")}" />')
+        if act.type == "If":
+            cond = _a(_expr(csharp_to_vb(props.get("condition") or "True")))
+            then = self._render_children(_ids(props.get("then")), ws, act_map, depth)
+            other = self._render_children(_ids(props.get("else")), ws, act_map, depth)
+            else_xml = f'\n        <If.Else>\n          <Sequence DisplayName="Else">\n{other}\n          </Sequence>\n        </If.Else>' if other else ""
+            return (f'      <If Condition="{cond}" DisplayName="{dn}">\n'
+                    f'        <If.Then>\n          <Sequence DisplayName="Then">\n{then}\n          </Sequence>\n        </If.Then>{else_xml}\n'
+                    f'      </If>')
+        # ForEach over a collection of strings (array/list); the loop variable is always called `item`
+        coll = _a(_expr(props.get("collection") or props.get("values") or "New String() {}"))
+        body = self._render_children(_ids(props.get("body")), ws, act_map, depth)
+        return (f'      <ForEach x:TypeArguments="x:String" DisplayName="{dn}" Values="{coll}">\n'
+                f'        <ActivityAction x:TypeArguments="x:String">\n'
+                f'          <ActivityAction.Argument>\n            <DelegateInArgument x:TypeArguments="x:String" Name="item" />\n          </ActivityAction.Argument>\n'
+                f'          <Sequence DisplayName="Body">\n{body}\n          </Sequence>\n        </ActivityAction>\n'
+                f'      </ForEach>')
 
     @staticmethod
     def _browser_with_body(browser_xml: str, inner: List[str]) -> str:

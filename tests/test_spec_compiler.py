@@ -153,3 +153,53 @@ def test_object_members_on_string_variables_are_removed():
     assert "other.Content" in out                    # unknown / non-string names stay untouched
     assert "my_read_file.Content" in out             # prefix of a longer name must not match
     assert "read_file.ContentLength" in out          # word boundary
+
+
+def _ctrl_spec(acts, order):
+    return {"name": "Ctl", "category": "general_automation", "description": "x", "packages": [], "arguments": [],
+            "variables": [{"name": "status", "type": "System.String"}, {"name": "dateien", "type": "System.String[]"}],
+            "activities": acts, "activity_order": order}
+
+
+def test_if_and_foreach_are_compiled_not_stubbed():
+    """If/ForEach were offered to the model but compiled to '[TODO: Implementieren]' log lines (found 24 Nov 2026)."""
+    acts = [
+        {"id": "w", "type": "LogMessage", "props": {"message": "warn", "level": "Warn"}},
+        {"id": "o", "type": "LogMessage", "props": {"message": "ok"}},
+        {"id": "p", "type": "If", "props": {"condition": 'status != "ok"', "then": ["w"], "else": ["o"]}},
+        {"id": "z", "type": "LogMessage", "props": {"message": '["Datei: " + item]'}},
+        {"id": "a", "type": "ForEach", "props": {"collection": "dateien", "body": ["z"]}},
+    ]
+    x = SpecCompiler().compile(_ctrl_spec(acts, ["p", "a"]))
+    assert "TODO" not in x
+    assert '<If Condition="[status &lt;&gt; &quot;ok&quot;]"' in x                       # C# != converted to VB <>
+    assert x.count("<If.Then>") == 1 and x.count("<If.Else>") == 1
+    assert '<ForEach x:TypeArguments="x:String"' in x and 'Name="item"' in x
+    assert x.count('Message="[&quot;warn&quot;]"') == 1 and x.count("Datei: ") == 1       # children rendered exactly once
+    assert 'Name="item"' in x and '<Variable x:TypeArguments="x:String" Name="item"' not in x   # loop variable is not auto-declared
+
+
+def test_children_listed_in_order_are_not_rendered_twice():
+    acts = [{"id": "w", "type": "LogMessage", "props": {"message": "inner"}},
+            {"id": "p", "type": "If", "props": {"condition": "True", "then": ["w"]}}]
+    x = SpecCompiler().compile(_ctrl_spec(acts, ["w", "p"]))      # model also listed the child at top level
+    assert x.count("inner") == 1 and "<If.Else>" not in x
+
+
+def test_self_referencing_if_terminates():
+    acts = [{"id": "p", "type": "If", "props": {"condition": "True", "then": ["p"]}}]
+    x = SpecCompiler().compile(_ctrl_spec(acts, ["p"]))
+    assert "<If " not in x or "zu tief" in x or x.count("<If ") < 10
+
+
+def test_json_access_pattern_has_imports():
+    x = SpecCompiler().compile(_ctrl_spec([{"id": "a", "type": "Assign", "props": {"to": "[status]", "value": 'JObject.Parse(status)("s").ToString()'}}], ["a"]))
+    assert "Newtonsoft.Json.Linq" in x and "<AssemblyReference>Newtonsoft.Json</AssemblyReference>" in x
+
+
+def test_empty_if_or_foreach_is_flagged_not_silent():
+    """Old prompt: the model emits If/ForEach without child ids. That must stay visible as a TODO, never an empty branch."""
+    acts = [{"id": "p", "type": "If", "props": {"condition": "True"}},
+            {"id": "a", "type": "ForEach", "props": {"collection": "dateien", "body": ["gibt_es_nicht"]}}]
+    x = SpecCompiler().compile(_ctrl_spec(acts, ["p", "a"]))
+    assert x.count("TODO: Implementieren") == 2 and "<If " not in x and "<ForEach " not in x
