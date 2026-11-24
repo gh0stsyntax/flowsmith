@@ -13,6 +13,21 @@ def _a(s: str) -> str:
     return html.escape(s, quote=True)
 
 
+def csharp_to_vb(expr: str) -> str:
+    """The generated projects use VB expressions; models often answer in C#. Convert the common forms
+    (array initialisers, `new T(...)`, `null`, `&&`/`||`, `!x`, `==`/`!=`, `$"..."`-free). Anything else is left unchanged."""
+    import re as _re
+    s = str(expr)
+    s = _re.sub(r"new\s*\[\s*\]\s*\{", "New String() {", s)                       # new[] { a } -> New String() {a}
+    s = _re.sub(r"new\s+(\w+)\s*\[\s*\]\s*\{", lambda m: f"New {m.group(1).capitalize() if m.group(1).islower() else m.group(1)}() {{", s)
+    s = _re.sub(r"\bnew\s+(?=[A-Za-z_][\w.]*\s*\()", "New ", s)                  # new Foo(..) -> New Foo(..)
+    s = _re.sub(r"\bnull\b", "Nothing", s)
+    s = s.replace("&&", " AndAlso ").replace("||", " OrElse ")
+    s = _re.sub(r"(?<![=!<>])==(?!=)", " = ", s).replace("!=", " <> ")
+    s = _re.sub(r"!(?=[A-Za-z_(])", "Not ", s)
+    return _re.sub(r"\s{2,}", " ", s).strip()
+
+
 def _expr(s: str) -> str:
     """Wrap a VB expression in [ ] unless it already is one (Studio treats [..] as an expression)."""
     s = str(s).strip()
@@ -114,7 +129,7 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
 
     if t == "Assign":
         to = _expr(props.get("to") or "[str_Result]")
-        value = _expr(props.get("value") or '""')
+        value = _expr(csharp_to_vb(props.get("value") or '""'))
         typ = props.get("type") or "x:Object"
         return f"""      <Assign DisplayName="{_a(dn)}">
         <Assign.To>

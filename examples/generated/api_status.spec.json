@@ -1,0 +1,68 @@
+{
+ "name": "CheckAPIStatus",
+ "category": "api_integration",
+ "description": "Ruft eine REST-API per HTTP GET auf und überprüft den Status.",
+ "packages": [
+  "UiPath.System.Activities",
+  "UiPath.WebAPI.Activities"
+ ],
+ "arguments": [],
+ "variables": [
+  {
+   "name": "apiResponse",
+   "type": "System.String",
+   "default": "",
+   "scope": "Main"
+  },
+  {
+   "name": "statusValue",
+   "type": "System.String",
+   "default": "",
+   "scope": "Main"
+  }
+ ],
+ "activities": [
+  {
+   "id": "http_get_request",
+   "type": "HttpClient",
+   "display_name": "HTTP GET Request ausführen",
+   "props": {
+    "Method": "GET",
+    "Url": "https://api.example.com/status",
+    "Response": "[apiResponse]"
+   }
+  },
+  {
+   "id": "parse_json",
+   "type": "DeserializeJSON",
+   "display_name": "JSON-Response deserialisieren",
+   "props": {
+    "Json": "[apiResponse]",
+    "ObjectToParse": "[statusValue]"
+   }
+  },
+  {
+   "id": "check_status",
+   "type": "If",
+   "display_name": "Status überprüfen",
+   "props": {
+    "Condition": "[statusValue] != 'ok'",
+    "TrueActivityId": "log_warning"
+   }
+  },
+  {
+   "id": "log_warning",
+   "type": "LogMessage",
+   "display_name": "Warnung im Log schreiben",
+   "props": {
+    "Message": "API-Status ungleich 'ok': [statusValue]"
+   }
+  }
+ ],
+ "activity_order": [
+  "http_get_request",
+  "parse_json",
+  "check_status",
+  "log_warning"
+ ]
+}

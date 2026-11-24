@@ -1,0 +1,44 @@
+{
+ "name": "SendTextFileAsEmail",
+ "category": "email_processing",
+ "description": "Liest eine Textdatei ein und sendet ihren Inhalt per E-Mail an eine feste Adresse.",
+ "packages": [
+  "UiPath.System.Activities",
+  "UiPath.Mail.Activities"
+ ],
+ "arguments": [
+  {
+   "name": "in_TextFilePath",
+   "type": "System.String",
+   "direction": "in",
+   "description": "Der Pfad zur Textdatei, die gesendet werden soll"
+  }
+ ],
+ "variables": [],
+ "activities": [
+  {
+   "id": "read_file",
+   "type": "ReadTextFile",
+   "display_name": "Textdatei einlesen",
+   "props": {
+    "filePath": "[in_TextFilePath]",
+    "fileContent": "=textContent"
+   }
+  },
+  {
+   "id": "send_email",
+   "type": "SendMail",
+   "display_name": "E-Mail senden",
+   "props": {
+    "to": "recipient@example.com",
+    "subject": "Inhalt der Textdatei",
+    "body": "[textContent]",
+    "isBodyHtml": false
+   }
+  }
+ ],
+ "activity_order": [
+  "read_file",
+  "send_email"
+ ]
+}

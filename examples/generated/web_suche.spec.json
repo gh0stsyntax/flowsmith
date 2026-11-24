@@ -1,0 +1,61 @@
+{
+ "name": "WebScrapeExample",
+ "category": "web_scraping",
+ "description": "Sucht nach einem Begriff auf example.com und liest den Ergebnistext aus.",
+ "packages": [
+  "UiPath.System.Activities",
+  "UiPath.UIAutomation.Activities"
+ ],
+ "arguments": [
+  {
+   "name": "in_Suchbegriff",
+   "type": "System.String",
+   "direction": "in",
+   "description": "Der zu suchende Begriff"
+  }
+ ],
+ "variables": [],
+ "activities": [
+  {
+   "id": "open_browser",
+   "type": "OpenBrowser",
+   "display_name": "Chrome öffnen",
+   "props": {
+    "url": "https://example.com"
+   }
+  },
+  {
+   "id": "navigate_to_search",
+   "type": "NavigateTo",
+   "display_name": "Suchseite aufrufen",
+   "props": {}
+  },
+  {
+   "id": "type_query",
+   "type": "TypeInto",
+   "display_name": "Suchbegriff eingeben",
+   "props": {
+    "searchTarget": "[in_Suchbegriff]"
+   }
+  },
+  {
+   "id": "click_search_button",
+   "type": "Click",
+   "display_name": "Suchbutton klicken",
+   "props": {}
+  },
+  {
+   "id": "get_results_text",
+   "type": "GetText",
+   "display_name": "Ergebnistext lesen",
+   "props": {}
+  }
+ ],
+ "activity_order": [
+  "open_browser",
+  "navigate_to_search",
+  "type_query",
+  "click_search_button",
+  "get_results_text"
+ ]
+}

@@ -1,0 +1,149 @@
+{
+ "name": "SummiereBestellungen",
+ "category": "excel_automation",
+ "description": "Summiert die Betraege der Bestellungen pro Kunde und speichert das Ergebnis in einer Excel-Datei.",
+ "packages": [
+  "UiPath.System.Activities",
+  "UiPath.Excel.Activities"
+ ],
+ "arguments": [
+  {
+   "name": "in_CSVFilePath",
+   "type": "System.String",
+   "direction": "in",
+   "description": "Pfad zur CSV-Datei mit den Bestellungen"
+  },
+  {
+   "name": "out_ExcelFilePath",
+   "type": "System.String",
+   "direction": "out",
+   "description": "Pfad zur Excel-Datei mit den summierten Beträgen"
+  }
+ ],
+ "variables": [
+  {
+   "name": "dataRange",
+   "type": "System.String",
+   "default": "\"A1:B100\"",
+   "scope": "Main"
+  },
+  {
+   "name": "sumRange",
+   "type": "System.String",
+   "default": "\"C1:C100\"",
+   "scope": "Main"
+  }
+ ],
+ "activities": [
+  {
+   "id": "read_csv",
+   "type": "ReadTextFile",
+   "display_name": "CSV-Datei lesen",
+   "props": {
+    "filePath": "[in_CSVFilePath]",
+    "result": "[csvContent]"
+   }
+  },
+  {
+   "id": "split_lines",
+   "type": "Assign",
+   "display_name": "Zeilen trennen",
+   "props": {
+    "to": "[lines]",
+    "value": "csvContent.Split(new[] { Environment.NewLine }, StringSplitOptions.None)"
+   }
+  },
+  {
+   "id": "parse_data",
+   "type": "ForEachRow",
+   "display_name": "Daten parsen",
+   "props": {
+    "range": "[dataRange]",
+    "rowIndex": "[index]"
+   },
+   "activities": [
+    {
+     "id": "get_customer",
+     "type": "Assign",
+     "display_name": "Kunde extrahieren",
+     "props": {
+      "to": "[customer]",
+      "value": "[lines[index].Split(',')[0]]"
+     }
+    },
+    {
+     "id": "get_amount",
+     "type": "Assign",
+     "display_name": "Betrag extrahieren",
+     "props": {
+      "to": "[amount]",
+      "value": "[double.Parse(lines[index].Split(',')[1])]"
+     }
+    }
+   ]
+  },
+  {
+   "id": "summarize_data",
+   "type": "ExcelApplicationScope",
+   "display_name": "Summen berechnen",
+   "props": {
+    "fileName": "[out_ExcelFilePath]"
+   },
+   "activities": [
+    {
+     "id": "create_worksheet",
+     "type": "Assign",
+     "display_name": "Arbeitsblatt erstellen",
+     "props": {
+      "to": "[worksheet]",
+      "value": "[excelApplication.ActiveWorkbook.Sheets.Add()]"
+     }
+    },
+    {
+     "id": "write_headers",
+     "type": "Assign",
+     "display_name": "Spaltenüberschriften schreiben",
+     "props": {
+      "to": "[worksheet.Cells[1, 2]]",
+      "value": "\"Summe\""
+     }
+    },
+    {
+     "id": "sum_by_customer",
+     "type": "Assign",
+     "display_name": "Summen pro Kunde berechnen",
+     "props": {
+      "to": "[customerSums]",
+      "value": "new Dictionary<string, double>()"
+     }
+    },
+    {
+     "id": "write_sums",
+     "type": "ForEachRow",
+     "display_name": "Summen schreiben",
+     "props": {
+      "range": "[sumRange]",
+      "rowIndex": "[index]"
+     },
+     "activities": [
+      {
+       "id": "get_customer_sum",
+       "type": "Assign",
+       "display_name": "Kundensumme extrahieren",
+       "props": {
+        "to": "[customerSum]",
+        "value": "[customerSums.ContainsKey(customer) ? customerSums[customer] : 0.0]"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "activity_order": [
+  "read_csv",
+  "split_lines",
+  "parse_data",
+  "summarize_data"
+ ]
+}

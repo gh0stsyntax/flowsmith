@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Activity x:Class="UiPath.SAPAnmeldungME22N"
+<Activity x:Class="UiPath.CheckAPIStatus"
                   xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
          xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
@@ -19,13 +19,7 @@
          xmlns:uix="http://schemas.uipath.com/workflow/activities/uix"
          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <mva:VisualBasic.Settings>
-    <mva:VisualBasicSettings>
-      <mva:VisualBasicSettings.ImportedNamespaces>
-        <mva:VisualBasicImportReference Assembly="System.Core" Import="System" />
-        <mva:VisualBasicImportReference Assembly="System.Data" Import="System.Data" />
-        <mva:VisualBasicImportReference Assembly="System.Xml.Linq" Import="System.Xml.Linq" />
-      </mva:VisualBasicSettings.ImportedNamespaces>
-    </mva:VisualBasicSettings>
+    <x:Null />
   </mva:VisualBasic.Settings>
   <TextExpression.NamespacesForImplementation>
     <sco:Collection x:TypeArguments="x:String">
@@ -113,30 +107,31 @@
     <AssemblyReference>UiPath.SAP.Activities</AssemblyReference>
     </sco:Collection>
   </TextExpression.ReferencesForImplementation>
-  <TryCatch DisplayName="SAPAnmeldungME22N TryCatch">
+  <TryCatch DisplayName="CheckAPIStatus TryCatch">
     <TryCatch.Try>
       <Sequence DisplayName="Main Process">
-        <Sequence.Variables />
-        <ui:LogMessage DisplayName="Log Start" Level="Information" Message="[SAPAnmeldungME22N] Start" />
-              <uix:NSAPCallTransaction DisplayName="SAP Anmeldung" Prefix="/n" Transaction="ME22N" Version="V4" />
-              <ui:Click ClickType="CLICK_SINGLE" DisplayName="Me22n-Tab klicken" MouseButton="BTN_LEFT" TimeoutMS="30000">
-                <ui:Click.Target>
-                  <ui:Target Selector="&lt;html app='chrome.exe' title='*' /&gt;" />
-                </ui:Click.Target>
-              </ui:Click>
-        <ui:LogMessage DisplayName="Log Ende" Level="Information" Message="[SAPAnmeldungME22N] Abgeschlossen" />
+        <Sequence.Variables>
+          <Variable x:TypeArguments="x:String" Name="apiResponse" Default="" />
+          <Variable x:TypeArguments="x:String" Name="statusValue" Default="" />
+          <Variable x:TypeArguments="x:String" Name="str_Response" />
+        </Sequence.Variables>
+        <ui:LogMessage DisplayName="Log Start" Level="Info" Message="[&quot;[CheckAPIStatus] Start&quot;]" />
+              <ui:HttpClient DisplayName="HTTP GET Request ausführen" EndPoint="[&quot;https://api.example.com/data&quot;]" Method="GET" AcceptFormat="JSON" AuthenticationType="None" TimeoutMS="30000" Result="[str_Response]" />
+              <ui:LogMessage DisplayName="JSON-Response deserialisieren [TODO: Implementieren]" Level="Warn" Message="[&quot;[CheckAPIStatus] SCHRITT AUSSTEHEND: JSON-Response deserialisieren (DeserializeJSON)&quot;]" />
+              <ui:LogMessage DisplayName="Status überprüfen [TODO: Implementieren]" Level="Warn" Message="[&quot;[CheckAPIStatus] SCHRITT AUSSTEHEND: Status überprüfen (If)&quot;]" />
+              <ui:LogMessage DisplayName="Warnung im Log schreiben" Level="Info" Message="[&quot;Warnung im Log schreiben&quot;]" />
+        <ui:LogMessage DisplayName="Log Ende" Level="Info" Message="[&quot;[CheckAPIStatus] Abgeschlossen&quot;]" />
       </Sequence>
     </TryCatch.Try>
     <TryCatch.Catches>
-      <Catch x:TypeArguments="s:Exception" faultVariable="exception">
+      <Catch x:TypeArguments="s:Exception">
         <ActivityAction x:TypeArguments="s:Exception">
           <ActivityAction.Argument>
             <DelegateInArgument x:TypeArguments="s:Exception" Name="exception" />
           </ActivityAction.Argument>
           <Sequence DisplayName="Fehlerbehandlung">
-            <ui:TakeScreenshot DisplayName="Screenshot bei Fehler" FileName="[&quot;Screenshot_&quot; + DateTime.Now.ToString(&quot;yyyyMMdd_HHmmss&quot;) + &quot;.png&quot;]" />
             <ui:LogMessage DisplayName="Log Fehler" Level="Error"
-              Message="[&quot;[SAPAnmeldungME22N] FEHLER: &quot; + exception.Message]" />
+              Message="[&quot;[CheckAPIStatus] FEHLER: &quot; + exception.Message]" />
             <Rethrow DisplayName="Exception weiterleiten" />
           </Sequence>
         </ActivityAction>
@@ -144,7 +139,7 @@
     </TryCatch.Catches>
     <TryCatch.Finally>
       <Sequence DisplayName="Finally – Cleanup">
-        <ui:LogMessage DisplayName="SAP Cleanup" Level="Information" Message="[SAPAnmeldungME22N] SAP-Session cleanup (ggf. Logoff implementieren)" />
+        <ui:LogMessage DisplayName="Cleanup" Level="Info" Message="[&quot;[CheckAPIStatus] Ressourcen freigeben&quot;]" />
       </Sequence>
     </TryCatch.Finally>
   </TryCatch>

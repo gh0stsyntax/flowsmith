@@ -37,10 +37,32 @@ An earlier run (18 June, 8 tasks, different model settings) was much weaker for 
 (avg. 43.9 / 22.9) — both runs are included unfiltered. Sample sizes are small; treat this as a
 **proof of concept**, not a benchmark.
 
+> **Important caveat.** These scores come from the project's own best-practice validator (try/catch, logging,
+> naming ...). They do **not** prove that UiPath Studio can open the file. When I built the June outputs with the real
+> UiPath toolchain in November 2026, they did not load (wrong type syntax, a legacy VB settings block, invalid
+> activity properties, undeclared variables ...). The compiler was fixed accordingly — see below.
+
+## Does the output really build in UiPath? (checked 24 Nov 2026)
+
+`scripts/uipath_build_check.py` puts every XAML into a blank UiPath project and runs `uip rpa build`
+(compilation + Workflow Analyzer, UiPath CLI 1.206).
+
+| Check | Result |
+|---|---|
+| Compiler, 6 activity groups (core/assign, files, Excel, mail, web, HTTP) | **6/6 build** |
+| End-to-end, plain-language task → local LLM (qwen3:14b) → XAML → UiPath build | **5/5 build** (PDF archive, REST status check, CSV → Excel, file → mail, web search) |
+| Regression tests (`tests/`, no UiPath needed) | 20 passed |
+
+Each of the five workflows was generated from one German sentence; the specs are stored next to the XAML in
+`examples/generated/`. Before the fixes, 0 of 5 loaded. Building is **not** the same as running: selectors are
+placeholders, credentials/servers are examples, and the process logic still needs a human review in Studio.
+The task descriptions were *not* tuned to the compiler; one extra task (the CSV one) failed twice with model-side
+problems (C# syntax in a VB project, invalid JSON) before generic fixes made it work — those fixes are covered by tests.
+
 ## What is (and isn't) in this repository
 
 - ✅ Full source code, configuration, figures, benchmark results, dataset statistics (`results/dataset_stats`).
-- ✅ Two synthetic example workflows in `data/raw/` and 31 model-generated workflows in `examples/generated/` (scores 38–99 — unfiltered).
+- ✅ Two synthetic example workflows in `data/raw/` and five model-generated workflows with their specs in `examples/generated/` (all build in UiPath, see above).
 - ❌ **Training data:** the thesis used 10 real enterprise workflows from my former employer. They are proprietary and not published; the pipeline runs on any folder of your own `.xaml` files.
 - ❌ Fine-tuned model weights (4.7 GB GGUF) and the thesis document.
 

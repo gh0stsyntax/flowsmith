@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Activity x:Class="UiPath.FilterKundenliste"
+<Activity x:Class="UiPath.SendTextFileAsEmail"
                   xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
          xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
@@ -18,14 +18,11 @@
          xmlns:ui="http://schemas.uipath.com/workflow/activities"
          xmlns:uix="http://schemas.uipath.com/workflow/activities/uix"
          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_TextFilePath" Type="InArgument(x:String)" sap2010:WorkflowViewState.IdRef="in_TextFilePath" />
+  </x:Members>
   <mva:VisualBasic.Settings>
-    <mva:VisualBasicSettings>
-      <mva:VisualBasicSettings.ImportedNamespaces>
-        <mva:VisualBasicImportReference Assembly="System.Core" Import="System" />
-        <mva:VisualBasicImportReference Assembly="System.Data" Import="System.Data" />
-        <mva:VisualBasicImportReference Assembly="System.Xml.Linq" Import="System.Xml.Linq" />
-      </mva:VisualBasicSettings.ImportedNamespaces>
-    </mva:VisualBasicSettings>
+    <x:Null />
   </mva:VisualBasic.Settings>
   <TextExpression.NamespacesForImplementation>
     <sco:Collection x:TypeArguments="x:String">
@@ -113,44 +110,29 @@
     <AssemblyReference>UiPath.SAP.Activities</AssemblyReference>
     </sco:Collection>
   </TextExpression.ReferencesForImplementation>
-  <TryCatch DisplayName="FilterKundenliste TryCatch">
+  <TryCatch DisplayName="SendTextFileAsEmail TryCatch">
     <TryCatch.Try>
       <Sequence DisplayName="Main Process">
         <Sequence.Variables>
-          <Variable x:TypeArguments="System.String" Name="excelFilePath" Default="" />
-          <Variable x:TypeArguments="System.String" Name="outputSheetName" Default="Auswertung" />
+          <Variable x:TypeArguments="x:String" Name="in_FilePath" />
+          <Variable x:TypeArguments="x:String" Name="str_FileContent" />
+          <Variable x:TypeArguments="x:String" Name="textContent" />
         </Sequence.Variables>
-        <ui:LogMessage DisplayName="Log Start" Level="Information" Message="[FilterKundenliste] Start" />
-              <ui:ExcelApplicationScope DisplayName="Excel öffnen" WorkbookPath="[in_ExcelFilePath]">
-                <ui:ExcelApplicationScope.Body>
-                  <ActivityAction>
-                    <ActivityAction.Argument>
-                      <DelegateInArgument Name="ExcelWorkbookScope" Type="ui:WorkbookApplication" />
-                    </ActivityAction.Argument>
-                    <ui:LogMessage DisplayName="Inside Excel scope" Level="Information" Message="[Excel öffnen] Excel geöffnet" />
-                  </ActivityAction>
-                </ui:ExcelApplicationScope.Body>
-              </ui:ExcelApplicationScope>
-              <ui:ReadRange DisplayName="Kundenliste lesen" WorkbookPath="[in_ExcelFilePath]" SheetName="Sheet1" AddHeaders="True">
-                <ui:ReadRange.Result>
-                  <OutArgument x:TypeArguments="sd:DataTable">[io_DataTable]</OutArgument>
-                </ui:ReadRange.Result>
-              </ui:ReadRange>
-              <ui:LogMessage DisplayName="Filtern nach Status='Aktiv' [TODO: Implementieren]" Level="Warning" Message="[FilterKundenliste] SCHRITT AUSSTEHEND: Filtern nach Status='Aktiv' (Assign)" />
-              <ui:WriteRange DisplayName="Ergebnisse in neues Sheet schreiben" WorkbookPath="[in_ExcelFilePath]" SheetName="Sheet1" StartingCell="A1" DataTable="[io_DataTable]" AddHeaders="False" />
-        <ui:LogMessage DisplayName="Log Ende" Level="Information" Message="[FilterKundenliste] Abgeschlossen" />
+        <ui:LogMessage DisplayName="Log Start" Level="Info" Message="[&quot;[SendTextFileAsEmail] Start - in_TextFilePath&quot;]" />
+              <ui:ReadTextFile DisplayName="Textdatei einlesen" FileName="[in_FilePath]" Content="[str_FileContent]" />
+              <ui:SendMail DisplayName="E-Mail senden" To="[&quot;recipient@example.com&quot;]" Subject="[&quot;Inhalt der Textdatei&quot;]" Body="[textContent]" Server="[&quot;smtp.example.com&quot;]" Port="587" EnableSSL="True" SecureConnection="Auto" IsBodyHtml="False" />
+        <ui:LogMessage DisplayName="Log Ende" Level="Info" Message="[&quot;[SendTextFileAsEmail] Abgeschlossen&quot;]" />
       </Sequence>
     </TryCatch.Try>
     <TryCatch.Catches>
-      <Catch x:TypeArguments="s:Exception" faultVariable="exception">
+      <Catch x:TypeArguments="s:Exception">
         <ActivityAction x:TypeArguments="s:Exception">
           <ActivityAction.Argument>
             <DelegateInArgument x:TypeArguments="s:Exception" Name="exception" />
           </ActivityAction.Argument>
           <Sequence DisplayName="Fehlerbehandlung">
-            <ui:TakeScreenshot DisplayName="Screenshot bei Fehler" FileName="[&quot;Screenshot_&quot; + DateTime.Now.ToString(&quot;yyyyMMdd_HHmmss&quot;) + &quot;.png&quot;]" />
             <ui:LogMessage DisplayName="Log Fehler" Level="Error"
-              Message="[&quot;[FilterKundenliste] FEHLER: &quot; + exception.Message]" />
+              Message="[&quot;[SendTextFileAsEmail] FEHLER: &quot; + exception.Message]" />
             <Rethrow DisplayName="Exception weiterleiten" />
           </Sequence>
         </ActivityAction>
@@ -158,7 +140,7 @@
     </TryCatch.Catches>
     <TryCatch.Finally>
       <Sequence DisplayName="Finally – Cleanup">
-        <ui:LogMessage DisplayName="Excel Cleanup" Level="Information" Message="[FilterKundenliste] Excel-Dateien ggf. schließen" />
+        <ui:LogMessage DisplayName="Cleanup" Level="Info" Message="[&quot;[SendTextFileAsEmail] Ressourcen freigeben&quot;]" />
       </Sequence>
     </TryCatch.Finally>
   </TryCatch>

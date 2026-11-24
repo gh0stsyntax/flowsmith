@@ -1,0 +1,90 @@
+{
+ "name": "RenameAndMovePDFs",
+ "category": "file_operations",
+ "description": "Prüft einen Eingangsordner auf PDF-Dateien, benennt jede Datei mit dem heutigen Datum als Präfix um und verschiebt sie in einen Archivordner.",
+ "packages": [
+  "UiPath.System.Activities",
+  "UiPath.File.Activities"
+ ],
+ "arguments": [
+  {
+   "name": "in_EingangsOrdner",
+   "type": "System.String",
+   "direction": "in",
+   "description": "Der Ordner, in dem die PDF-Dateien liegen"
+  },
+  {
+   "name": "in_ArchivOrdner",
+   "type": "System.String",
+   "direction": "in",
+   "description": "Der Ordner, in den die Dateien archiviert werden"
+  }
+ ],
+ "variables": [
+  {
+   "name": "today",
+   "type": "System.DateTime",
+   "default": "DateTime.Now.Date",
+   "scope": "Main"
+  },
+  {
+   "name": "pdfFiles",
+   "type": "System.Collections.Generic.List(System.String)",
+   "default": "new List<string>()",
+   "scope": "Main"
+  }
+ ],
+ "activities": [
+  {
+   "id": "get_pdf_files",
+   "type": "ReadTextFile",
+   "display_name": "PDF-Dateien im Eingangsordner lesen",
+   "props": {
+    "filePath": "[in_EingangsOrdner]",
+    "encoding": "UTF8",
+    "result": "[pdfFiles]"
+   }
+  },
+  {
+   "id": "rename_and_move",
+   "type": "ForEachRow",
+   "display_name": "Jede PDF-Datei umbenennen und verschieben",
+   "props": {
+    "input": "[pdfFiles]",
+    "body": [
+     {
+      "id": "get_file_path",
+      "type": "Assign",
+      "display_name": "Dateipfad bilden",
+      "props": {
+       "to": "[filePath]",
+       "value": "[in_EingangsOrdner] + \"/\" + [item]"
+      }
+     },
+     {
+      "id": "rename_file",
+      "type": "RenameFile",
+      "display_name": "Datei umbenennen",
+      "props": {
+       "oldName": "[filePath]",
+       "newName": "[in_ArchivOrdner] + \"/\" + [today.ToString(\"yyyy-MM-dd\")] + \"_\" + [item]"
+      }
+     },
+     {
+      "id": "move_file",
+      "type": "MoveFile",
+      "display_name": "Datei verschieben",
+      "props": {
+       "sourcePath": "[filePath]",
+       "destinationPath": "[in_ArchivOrdner] + \"/\" + [today.ToString(\"yyyy-MM-dd\")] + \"_\" + [item]"
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "activity_order": [
+  "get_pdf_files",
+  "rename_and_move"
+ ]
+}

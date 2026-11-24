@@ -90,6 +90,8 @@ als JSON zu erstellen.
 
 REGELN:
 - Antworte NUR mit validem JSON. Keine Erklärungen, kein Markdown.
+- Alle Ausdrücke (props "to", "value", "message" ...) sind VB.NET, NICHT C#:
+  New String() {{"a", "b"}} statt new[] {{...}}, Nothing statt null, AndAlso/OrElse statt &&/||, <> statt !=.
 - Wähle activity.type aus validen UiPath-Aktivitäten:
   LogMessage, TryCatch, Assign, If, ForEach, While, Sequence,
   Click, TypeInto, GetText, WaitForElement, OpenBrowser, CloseBrowser,

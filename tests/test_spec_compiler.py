@@ -98,6 +98,15 @@ def test_undeclared_names_are_auto_declared():
     assert not any('Name="DateTime"' in l or 'Name="exception"' in l for l in variables)   # known names stay undeclared
 
 
+def test_type_names_are_not_declared_as_variables():
+    """'StringSplitOptions.None' was auto-declared as a String variable -> BC30456 'None' is not a member of 'String'."""
+    x = SpecCompiler().compile(_spec(activities=[("Assign", {"to": "[parts]", "value": 'txt.Split(New String() {"a"}, StringSplitOptions.None)'})],
+                                     variables=[{"name": "txt", "type": "System.String", "scope": "Main"}]))
+    names = [l.split('Name="')[1].split('"')[0] for l in x.splitlines() if "<Variable " in l]
+    assert "StringSplitOptions" not in names and "parts" in names
+    assert 'x:TypeArguments="s:String[]" Name="parts"' in x                  # Split(...) returns String(), not String
+
+
 def test_no_literal_defaults_for_reference_types():
     """'Literal only supports value types and System.String' (DataTable Default="")."""
     x = SpecCompiler().compile(_spec(variables=[
@@ -115,6 +124,16 @@ def test_quotes_from_spec_never_break_the_xml():
     ET.fromstring(x.split("?>", 1)[1])                    # well-formed
     assert 'Name="r" Default="A1:B100"' in x and 'Default="say &quot;hi&quot;"' in x
     assert 'x:Class="UiPath.Report1"' in x                # valid identifier
+
+
+def test_csharp_expressions_are_converted_to_vb():
+    """Real case (csv task): 'csvContent.Split(new[] { Environment.NewLine }, ...)' -> Studio BC30203 in a VB project."""
+    from src.generation.activity_templates import csharp_to_vb
+    assert csharp_to_vb("csvContent.Split(new[] { Environment.NewLine }, StringSplitOptions.None)") == \
+        "csvContent.Split(New String() { Environment.NewLine }, StringSplitOptions.None)"
+    assert csharp_to_vb("a != null && !b") == "a <> Nothing AndAlso Not b"
+    assert csharp_to_vb("x == 1 || y") == "x = 1 OrElse y"
+    assert csharp_to_vb("in_Name.Length * 2") == "in_Name.Length * 2"          # plain VB stays untouched
 
 
 def test_every_toolbox_activity_compiles_to_well_formed_xml():

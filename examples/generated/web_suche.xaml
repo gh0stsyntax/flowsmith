@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Activity x:Class="UiPath.WebLoginAndDownloadReport"
+<Activity x:Class="UiPath.WebScrapeExample"
                   xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
          xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
@@ -18,14 +18,11 @@
          xmlns:ui="http://schemas.uipath.com/workflow/activities"
          xmlns:uix="http://schemas.uipath.com/workflow/activities/uix"
          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Suchbegriff" Type="InArgument(x:String)" sap2010:WorkflowViewState.IdRef="in_Suchbegriff" />
+  </x:Members>
   <mva:VisualBasic.Settings>
-    <mva:VisualBasicSettings>
-      <mva:VisualBasicSettings.ImportedNamespaces>
-        <mva:VisualBasicImportReference Assembly="System.Core" Import="System" />
-        <mva:VisualBasicImportReference Assembly="System.Data" Import="System.Data" />
-        <mva:VisualBasicImportReference Assembly="System.Xml.Linq" Import="System.Xml.Linq" />
-      </mva:VisualBasicSettings.ImportedNamespaces>
-    </mva:VisualBasicSettings>
+    <x:Null />
   </mva:VisualBasic.Settings>
   <TextExpression.NamespacesForImplementation>
     <sco:Collection x:TypeArguments="x:String">
@@ -113,54 +110,57 @@
     <AssemblyReference>UiPath.SAP.Activities</AssemblyReference>
     </sco:Collection>
   </TextExpression.ReferencesForImplementation>
-  <TryCatch DisplayName="WebLoginAndDownloadReport TryCatch">
+  <TryCatch DisplayName="WebScrapeExample TryCatch">
     <TryCatch.Try>
       <Sequence DisplayName="Main Process">
         <Sequence.Variables>
-          <Variable x:TypeArguments="System.String" Name="username" Default="" />
-          <Variable x:TypeArguments="System.String" Name="password" Default="" />
+          <Variable x:TypeArguments="x:String" Name="str_InputText" />
+          <Variable x:TypeArguments="x:String" Name="str_Text" />
         </Sequence.Variables>
-        <ui:LogMessage DisplayName="Log Start" Level="Information" Message="[WebLoginAndDownloadReport] Start" />
-              <ui:OpenBrowser BrowserType="Chrome" DisplayName="Chrome öffnen" Url="chrome://" />
-              <ui:NavigateTo DisplayName="Zu https://example.com navigieren" Url="https://example.com" />
-              <ui:TypeInto ClickBeforeMode="Single" DisplayName="Username einfügen" EmptyFieldMode="SingleLine" Text="[username]" TimeoutMS="30000">
-                <ui:TypeInto.Target>
-                  <ui:Target Selector="&lt;html app='chrome.exe' title='*' /&gt;" />
-                </ui:TypeInto.Target>
-              </ui:TypeInto>
-              <ui:TypeInto ClickBeforeMode="Single" DisplayName="Password einfügen" EmptyFieldMode="SingleLine" Text="[password]" TimeoutMS="30000">
-                <ui:TypeInto.Target>
-                  <ui:Target Selector="&lt;html app='chrome.exe' title='*' /&gt;" />
-                </ui:TypeInto.Target>
-              </ui:TypeInto>
-              <ui:Click ClickType="CLICK_SINGLE" DisplayName="Login-Button klicken" MouseButton="BTN_LEFT" TimeoutMS="30000">
-                <ui:Click.Target>
-                  <ui:Target Selector="&lt;html app='chrome.exe' title='*' /&gt;" />
-                </ui:Click.Target>
-              </ui:Click>
-              <ui:WaitForElement DisplayName="Bericht herunterladen warten" TimeoutMS="30000">
-                <ui:WaitForElement.Target>
-                  <ui:Target Selector="//a[contains(text(), &#x27;Download Report&#x27;)]" />
-                </ui:WaitForElement.Target>
-              </ui:WaitForElement>
-              <ui:Click ClickType="CLICK_SINGLE" DisplayName="Bericht herunterladen" MouseButton="BTN_LEFT" TimeoutMS="30000">
-                <ui:Click.Target>
-                  <ui:Target Selector="&lt;html app='chrome.exe' title='*' /&gt;" />
-                </ui:Click.Target>
-              </ui:Click>
-        <ui:LogMessage DisplayName="Log Ende" Level="Information" Message="[WebLoginAndDownloadReport] Abgeschlossen" />
+        <ui:LogMessage DisplayName="Log Start" Level="Info" Message="[&quot;[WebScrapeExample] Start - in_Suchbegriff&quot;]" />
+              <ui:OpenBrowser BrowserType="Chrome" DisplayName="Chrome öffnen" Url="[&quot;https://example.com&quot;]">
+                <ui:OpenBrowser.Body>
+                  <ActivityAction x:TypeArguments="x:Object">
+                    <ActivityAction.Argument>
+                      <DelegateInArgument x:TypeArguments="x:Object" Name="ContextTarget" />
+                    </ActivityAction.Argument>
+                    <Sequence DisplayName="Do">
+                    <ui:NavigateTo DisplayName="Suchseite aufrufen" Url="[&quot;https://example.com&quot;]" />
+                    <ui:TypeInto ClickBeforeTyping="True" DisplayName="Suchbegriff eingeben" EmptyField="True" Text="[str_InputText]">
+                      <ui:TypeInto.Target>
+                        <ui:Target Selector="&lt;webctrl tag='INPUT' /&gt;" TimeoutMS="30000" />
+                      </ui:TypeInto.Target>
+                    </ui:TypeInto>
+                    <ui:Click ClickType="CLICK_SINGLE" DisplayName="Suchbutton klicken" KeyModifiers="None" MouseButton="BTN_LEFT">
+                      <ui:Click.Target>
+                        <ui:Target Selector="&lt;webctrl tag='INPUT' /&gt;" TimeoutMS="30000" />
+                      </ui:Click.Target>
+                    </ui:Click>
+                    <ui:GetValue DisplayName="Ergebnistext lesen">
+                      <ui:GetValue.Value>
+                        <OutArgument x:TypeArguments="x:String">[str_Text]</OutArgument>
+                      </ui:GetValue.Value>
+                      <ui:GetValue.Target>
+                        <ui:Target Selector="&lt;webctrl tag='INPUT' /&gt;" TimeoutMS="30000" />
+                      </ui:GetValue.Target>
+                    </ui:GetValue>
+                    </Sequence>
+                  </ActivityAction>
+                </ui:OpenBrowser.Body>
+              </ui:OpenBrowser>
+        <ui:LogMessage DisplayName="Log Ende" Level="Info" Message="[&quot;[WebScrapeExample] Abgeschlossen&quot;]" />
       </Sequence>
     </TryCatch.Try>
     <TryCatch.Catches>
-      <Catch x:TypeArguments="s:Exception" faultVariable="exception">
+      <Catch x:TypeArguments="s:Exception">
         <ActivityAction x:TypeArguments="s:Exception">
           <ActivityAction.Argument>
             <DelegateInArgument x:TypeArguments="s:Exception" Name="exception" />
           </ActivityAction.Argument>
           <Sequence DisplayName="Fehlerbehandlung">
-            <ui:TakeScreenshot DisplayName="Screenshot bei Fehler" FileName="[&quot;Screenshot_&quot; + DateTime.Now.ToString(&quot;yyyyMMdd_HHmmss&quot;) + &quot;.png&quot;]" />
+            <ui:TakeScreenshot DisplayName="Screenshot bei Fehler" />
             <ui:LogMessage DisplayName="Log Fehler" Level="Error"
-              Message="[&quot;[WebLoginAndDownloadReport] FEHLER: &quot; + exception.Message]" />
+              Message="[&quot;[WebScrapeExample] FEHLER: &quot; + exception.Message]" />
             <Rethrow DisplayName="Exception weiterleiten" />
           </Sequence>
         </ActivityAction>
@@ -168,8 +168,8 @@
     </TryCatch.Catches>
     <TryCatch.Finally>
       <Sequence DisplayName="Finally – Cleanup">
-        <ui:CloseBrowser DisplayName="Browser schließen (Cleanup)" />
-      <ui:LogMessage DisplayName="Cleanup abgeschlossen" Level="Information" Message="[WebLoginAndDownloadReport] Cleanup OK" />
+        <ui:CloseTab DisplayName="Browser-Tab schließen (Cleanup)" ContinueOnError="True" />
+      <ui:LogMessage DisplayName="Cleanup abgeschlossen" Level="Info" Message="[&quot;[WebScrapeExample] Cleanup OK&quot;]" />
       </Sequence>
     </TryCatch.Finally>
   </TryCatch>

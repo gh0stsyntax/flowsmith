@@ -126,7 +126,7 @@ def _infer_type(name: str, assigned: Optional[str] = None) -> str:
     if v:
         if v.startswith(("DateTime.Now", "Now", "Date.Now", "DateTime.Today")) and ".ToString" not in v:
             return "s:DateTime"
-        if "GetFiles(" in v or "GetDirectories(" in v:
+        if "GetFiles(" in v or "GetDirectories(" in v or ".Split(" in v or "ReadAllLines(" in v:
             return "s:String[]"
         if v.replace(".", "", 1).isdigit() or v.endswith((".Count", ".Length", ".Rows.Count")):
             return "x:Int32" if "." not in v.replace(".Count", "").replace(".Length", "") else "x:Double"
@@ -145,6 +145,8 @@ def _identifiers_in_expressions(xml_text: str) -> List[str]:
         e = _re.sub(r'"(?:[^"]|"")*"', '""', e)                      # drop VB string literals
         for m in _re.finditer(r'(?<![\w.])([A-Za-z_]\w*)', e):
             ident = m.group(1)
+            if ident[0].isupper() and e[m.end():m.end() + 1] == ".":
+                continue                                             # Type.Member (StringSplitOptions.None, Path.Combine ...)
             if ident.lower() not in _VB_KNOWN and ident not in found:
                 found.append(ident)
     return found
