@@ -1,0 +1,16 @@
+{
+  "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+  "category": "excel_automation",
+  "score": 83,
+  "attempts": 1,
+  "ablation_condition": "full_system",
+  "model": "xaml-specialist-lora",
+  "component_scores": {
+    "structure": 99,
+    "logging": 100,
+    "naming": 100,
+    "security": 100,
+    "completeness": 85
+  },
+  "generated_at": "20260621_083316"
+}

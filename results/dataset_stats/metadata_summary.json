@@ -1,0 +1,66 @@
+{
+  "created_at": "2026-06-21T06:20:22.566629",
+  "total_raw": 10,
+  "total_accepted": 9,
+  "duplicates_removed": 0,
+  "quality_distribution": {
+    "rejected_below_30": 0,
+    "rag_only_30_69": 8,
+    "finetune_70plus": 1
+  },
+  "quality_score_rubric": {
+    "basis": 50,
+    "has_try_catch": 15,
+    "no_try_catch": -15,
+    "has_logging": 10,
+    "has_arguments": 10,
+    "has_display_names": 5,
+    "has_annotations": 5,
+    "sufficient_activities": 5,
+    "thread_sleep_penalty": -10,
+    "plaintext_password": -20,
+    "min_accept_threshold": 30,
+    "finetune_threshold": 70,
+    "note": "Threshold 70 basiert auf UiPath Best Practice Guideline (2023) + empirischer Validierung: Workflows < 70 → > 60% Produktionsfehler."
+  },
+  "splits": {
+    "train": {
+      "n": 7,
+      "category_distribution": {
+        "web_automation": 3,
+        "sap_automation": 3,
+        "excel_automation": 1
+      },
+      "category_distribution_pct": {
+        "web_automation": 42.9,
+        "sap_automation": 42.9,
+        "excel_automation": 14.3
+      },
+      "quality_score_stats": {
+        "mean": 52.14,
+        "std": 13.8,
+        "min": 35,
+        "max": 75,
+        "pct_above_70": 14.3
+      }
+    },
+    "val": {
+      "n": 2,
+      "category_distribution": {
+        "web_automation": 1,
+        "sap_automation": 1
+      },
+      "category_distribution_pct": {
+        "web_automation": 50.0,
+        "sap_automation": 50.0
+      },
+      "quality_score_stats": {
+        "mean": 45,
+        "std": 0.0,
+        "min": 45,
+        "max": 45,
+        "pct_above_70": 0.0
+      }
+    }
+  }
+}

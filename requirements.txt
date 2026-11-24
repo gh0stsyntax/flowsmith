@@ -1,0 +1,34 @@
+# requirements.txt
+# UiPath XAML ML System — Kern-Abhängigkeiten
+# Installieren: pip install -r requirements.txt
+
+# ─── Web-Framework & API ───────────────────────────────────────
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# ─── HTTP & Konfiguration ──────────────────────────────────────
+requests>=2.31.0
+pyyaml>=6.0.1
+python-dotenv>=1.0.0        # .env für Ollama-Umgebungsvariablen
+
+# ─── Dokument-Verarbeitung ─────────────────────────────────────
+python-docx>=1.1.2          # DOCX-Upload in der Web-UI
+
+# ─── Datenverarbeitung ─────────────────────────────────────────
+numpy>=1.24.0
+
+# ─── Development & Testing ─────────────────────────────────────
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0
+
+# ─── NICHT in dieser Datei (separate requirements) ────────────
+# Desktop-App:   requirements_desktop.txt
+# LoRA-Training: requirements_lora.txt
+
+# ─── ENTFERNT gegenüber alter Version ──────────────────────────
+# gradio          → nicht verwendet, UI läuft über SimpleHTTPRequestHandler
+# chromadb        → nicht verwendet, RAG nutzt TF-IDF (kein Vector-DB nötig)
+# sentence-transformers → nicht verwendet (für geplante ChromaDB-Erweiterung vorgesehen)
+# pathlib2        → pathlib ist seit Python 3.4 in stdlib, kein Extra-Paket nötig
+# unsloth/trl/transformers/torch/peft/bitsandbytes → siehe requirements_lora.txt

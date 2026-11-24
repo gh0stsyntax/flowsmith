@@ -1,0 +1,367 @@
+{
+  "timestamp": "20260621_083104",
+  "strategies": {
+    "baseline": {
+      "label": "A) Baseline (direkt)",
+      "n": 5,
+      "n_errors": 1,
+      "avg_score": 55.8,
+      "std_score": 21.9,
+      "pass_rate": 20.0,
+      "avg_elapsed_s": 23.3,
+      "component_avgs": {
+        "structure": 98,
+        "logging": 96.2,
+        "naming": 99.8,
+        "security": 100,
+        "completeness": 62.5
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "score": 0,
+          "error": "XAML-Generierung fehlgeschlagen nach allen Versuchen",
+          "passed": false
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 83,
+          "elapsed_s": 20.87,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "category": "web_automation",
+          "score": 39,
+          "elapsed_s": 27.37,
+          "passed": false,
+          "component_scores": {
+            "structure": 100,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 40
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "category": "email_processing",
+          "score": 37,
+          "elapsed_s": 25.95,
+          "passed": false,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 99,
+            "security": 100,
+            "completeness": 40
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 64,
+          "elapsed_s": 19.08,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        }
+      ]
+    },
+    "baseline_repair": {
+      "label": "B) Baseline + Repair",
+      "n": 5,
+      "n_errors": 2,
+      "avg_score": 73.3,
+      "std_score": 17.6,
+      "pass_rate": 40.0,
+      "avg_elapsed_s": 21.5,
+      "component_avgs": {
+        "structure": 99.3,
+        "logging": 100,
+        "naming": 100,
+        "security": 100,
+        "completeness": 75
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "score": 0,
+          "error": "XAML-Generierung fehlgeschlagen nach allen Versuchen",
+          "passed": false
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 83,
+          "elapsed_s": 19.41,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "category": "web_automation",
+          "score": 53,
+          "elapsed_s": 25.85,
+          "passed": false,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 55
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "score": 0,
+          "error": "XAML-Generierung fehlgeschlagen nach allen Versuchen",
+          "passed": false
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 84,
+          "elapsed_s": 19.24,
+          "passed": true,
+          "component_scores": {
+            "structure": 100,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        }
+      ]
+    },
+    "two_phase": {
+      "label": "C) Zwei-Phasen",
+      "n": 5,
+      "n_errors": 0,
+      "avg_score": 93,
+      "std_score": 8.2,
+      "pass_rate": 100.0,
+      "avg_elapsed_s": 15.4,
+      "component_avgs": {
+        "structure": 99,
+        "logging": 100,
+        "naming": 100,
+        "security": 100,
+        "completeness": 94
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "category": "sap_automation",
+          "score": 84,
+          "elapsed_s": 16.59,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 415
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 99,
+          "elapsed_s": 15.44,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 492
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "category": "web_automation",
+          "score": 84,
+          "elapsed_s": 16.15,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 467
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "category": "email_processing",
+          "score": 99,
+          "elapsed_s": 14.31,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 393
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 99,
+          "elapsed_s": 14.33,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 415
+        }
+      ]
+    },
+    "two_phase_repair": {
+      "label": "D) Zwei-Phasen + Repair ★",
+      "n": 5,
+      "n_errors": 0,
+      "avg_score": 93,
+      "std_score": 8.2,
+      "pass_rate": 100.0,
+      "avg_elapsed_s": 14.5,
+      "component_avgs": {
+        "structure": 99,
+        "logging": 100,
+        "naming": 100,
+        "security": 100,
+        "completeness": 94
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "category": "sap_automation",
+          "score": 84,
+          "elapsed_s": 15.8,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 412
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 99,
+          "elapsed_s": 14.89,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 389
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "category": "web_automation",
+          "score": 84,
+          "elapsed_s": 15.12,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 435
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "category": "email_processing",
+          "score": 99,
+          "elapsed_s": 12.31,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 312
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 99,
+          "elapsed_s": 14.48,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 410
+        }
+      ]
+    }
+  }
+}

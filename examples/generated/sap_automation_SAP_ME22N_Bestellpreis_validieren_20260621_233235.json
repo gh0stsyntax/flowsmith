@@ -1,0 +1,16 @@
+{
+  "task": "SAP ME22N – Bestellpreis validieren",
+  "category": "sap_automation",
+  "score": 68,
+  "attempts": 2,
+  "ablation_condition": "full_system",
+  "model": "xaml-specialist-lora",
+  "component_scores": {
+    "structure": 99,
+    "logging": 100,
+    "naming": 100,
+    "security": 100,
+    "completeness": 70
+  },
+  "generated_at": "20260621_233235"
+}

@@ -1,0 +1,81 @@
+{
+  "name": "ExportSQLToExcel",
+  "category": "database_operations",
+  "description": "Führt SQL-Query auf Datenbank aus und schreibt das Ergebnis in eine Excel-Datei.",
+  "packages": [
+    "UiPath.System.Activities",
+    "UiPath.Database.Activities",
+    "UiPath.Excel.Activities"
+  ],
+  "arguments": [
+    {
+      "name": "in_ConnectionString",
+      "type": "System.String",
+      "direction": "in",
+      "description": "Die Verbindungszeichenfolge zur Datenbank"
+    },
+    {
+      "name": "in_Query",
+      "type": "System.String",
+      "direction": "in",
+      "description": "Der SQL-Query, der ausgeführt werden soll"
+    }
+  ],
+  "variables": [
+    {
+      "name": "dataTable",
+      "type": "System.Data.DataTable",
+      "default": null,
+      "scope": "Main"
+    },
+    {
+      "name": "excelFilePath",
+      "type": "System.String",
+      "default": "",
+      "scope": "Main"
+    }
+  ],
+  "activities": [
+    {
+      "id": "connect_db",
+      "type": "ConnectToDatabase",
+      "display_name": "Datenbank verbinden",
+      "props": {
+        "connectionString": "[in_ConnectionString]"
+      }
+    },
+    {
+      "id": "execute_query",
+      "type": "ExecuteQuery",
+      "display_name": "SQL-Query ausführen",
+      "props": {
+        "query": "[in_Query]",
+        "dataTable": "=dataTable"
+      }
+    },
+    {
+      "id": "set_excel_path",
+      "type": "Assign",
+      "display_name": "Excel-Pfad setzen",
+      "props": {
+        "to": "[excelFilePath]",
+        "value": "\"C:\\path\\to\\output.xlsx\""
+      }
+    },
+    {
+      "id": "write_to_excel",
+      "type": "WriteRange",
+      "display_name": "Ergebnis in Excel schreiben",
+      "props": {
+        "range": "=dataTable",
+        "filePath": "[excelFilePath]"
+      }
+    }
+  ],
+  "activity_order": [
+    "connect_db",
+    "execute_query",
+    "set_excel_path",
+    "write_to_excel"
+  ]
+}

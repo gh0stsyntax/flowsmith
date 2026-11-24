@@ -1,0 +1,32 @@
+{
+  "name": "SAPAnmeldungME22N",
+  "category": "sap_automation",
+  "description": "Meldet sich in SAP an und navigiert zur ME22N-Transaktion",
+  "packages": [
+    "UiPath.System.Activities",
+    "UiPath.SAP.Activities"
+  ],
+  "arguments": [],
+  "variables": [],
+  "activities": [
+    {
+      "id": "sap_logon",
+      "type": "SAPTransaction",
+      "display_name": "SAP Anmeldung",
+      "props": {
+        "transaction": "ME22N",
+        "selector_kind": "sap"
+      }
+    },
+    {
+      "id": "nav_me22n",
+      "type": "Click",
+      "display_name": "Me22n-Tab klicken",
+      "props": {}
+    }
+  ],
+  "activity_order": [
+    "sap_logon",
+    "nav_me22n"
+  ]
+}

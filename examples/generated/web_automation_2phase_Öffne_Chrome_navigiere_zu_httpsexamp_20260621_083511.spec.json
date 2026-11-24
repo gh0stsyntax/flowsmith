@@ -1,0 +1,94 @@
+{
+  "name": "WebLoginAndDownloadReport",
+  "category": "web_automation",
+  "description": "Öffnet Chrome, navigiert zu https://example.com, füllt Login-Formular aus und lädt Bericht herunter.",
+  "packages": [
+    "UiPath.System.Activities",
+    "UiPath.UIAutomation.Activities"
+  ],
+  "arguments": [],
+  "variables": [
+    {
+      "name": "username",
+      "type": "System.String",
+      "default": "",
+      "scope": "Main"
+    },
+    {
+      "name": "password",
+      "type": "System.String",
+      "default": "",
+      "scope": "Main"
+    }
+  ],
+  "activities": [
+    {
+      "id": "open_browser",
+      "type": "OpenBrowser",
+      "display_name": "Chrome öffnen",
+      "props": {
+        "url": "chrome://",
+        "browserType": "Chrome"
+      }
+    },
+    {
+      "id": "navigate_to_site",
+      "type": "NavigateTo",
+      "display_name": "Zu https://example.com navigieren",
+      "props": {
+        "uri": "https://example.com"
+      }
+    },
+    {
+      "id": "fill_username",
+      "type": "TypeInto",
+      "display_name": "Username einfügen",
+      "props": {
+        "text": "[username]",
+        "target": "//input[@name='username']"
+      }
+    },
+    {
+      "id": "fill_password",
+      "type": "TypeInto",
+      "display_name": "Password einfügen",
+      "props": {
+        "text": "[password]",
+        "target": "//input[@name='password']"
+      }
+    },
+    {
+      "id": "click_login",
+      "type": "Click",
+      "display_name": "Login-Button klicken",
+      "props": {
+        "target": "//button[@type='submit']"
+      }
+    },
+    {
+      "id": "wait_for_report",
+      "type": "WaitForElement",
+      "display_name": "Bericht herunterladen warten",
+      "props": {
+        "selector": "//a[contains(text(), 'Download Report')]"
+      }
+    },
+    {
+      "id": "download_report",
+      "type": "Click",
+      "display_name": "Bericht herunterladen",
+      "props": {
+        "target": "//a[contains(text(), 'Download Report')]"
+      }
+    }
+  ],
+  "activity_order": [
+    "open_browser",
+    "navigate_to_site",
+    "fill_username",
+    "fill_password",
+    "click_login",
+    "wait_for_report",
+    "download_report"
+  ]
+}

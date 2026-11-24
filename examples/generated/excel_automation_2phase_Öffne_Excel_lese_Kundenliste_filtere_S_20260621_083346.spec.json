@@ -1,0 +1,83 @@
+{
+  "name": "KundenlisteFiltern",
+  "category": "excel_automation",
+  "description": "Liest Kundenliste aus Excel, filtert nach Status='Aktiv' und schreibt Ergebnis in neues Sheet 'Auswertung'",
+  "packages": [
+    "UiPath.System.Activities",
+    "UiPath.Excel.Activities"
+  ],
+  "arguments": [],
+  "variables": [
+    {
+      "name": "excelFilePath",
+      "type": "System.String",
+      "default": "",
+      "scope": "Main"
+    },
+    {
+      "name": "kundenListe",
+      "type": "System.Collections.Generic.List`1[System.Data.DataRow]",
+      "default": null,
+      "scope": "Main"
+    }
+  ],
+  "activities": [
+    {
+      "id": "openExcel",
+      "type": "OpenApplication",
+      "display_name": "Excel öffnen",
+      "props": {
+        "FilePath": "[excelFilePath]"
+      }
+    },
+    {
+      "id": "readKundenListe",
+      "type": "ReadRange",
+      "display_name": "Kundenliste lesen",
+      "props": {
+        "Address": "'Tabelle1'!A1:D100",
+        "OutputDataTable": "[kundenListe]"
+      }
+    },
+    {
+      "id": "filterKunden",
+      "type": "ForEachRow",
+      "display_name": "Kunden filtern",
+      "props": {
+        "InputTable": "[kundenListe]",
+        "Body": [
+          {
+            "id": "checkStatus",
+            "type": "If",
+            "display_name": "Prüfe Status",
+            "props": {
+              "Condition": "= [row.Status] = 'Aktiv'",
+              "TrueActivity": {
+                "id": "writeToSheet",
+                "type": "WriteRange",
+                "display_name": "Kunden in Auswertung schreiben",
+                "props": {
+                  "Address": "'Auswertung'!A1:D100",
+                  "InputTable": "[kundenListe]",
+                  "StartRow": 2
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "saveExcel",
+      "type": "SaveApplication",
+      "display_name": "Excel speichern",
+      "props": {}
+    }
+  ],
+  "activity_order": [
+    "openExcel",
+    "readKundenListe",
+    "filterKunden",
+    "saveExcel"
+  ]
+}

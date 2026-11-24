@@ -1,0 +1,16 @@
+{
+  "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+  "category": "database_operations",
+  "score": 84,
+  "attempts": 1,
+  "ablation_condition": "full_system",
+  "model": "xaml-specialist-lora",
+  "component_scores": {
+    "structure": 100,
+    "logging": 100,
+    "naming": 100,
+    "security": 100,
+    "completeness": 85
+  },
+  "generated_at": "20260621_083711"
+}

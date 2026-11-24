@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Activity x:Class="SAPME22N.ValidateOrderPrice" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+         xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+         xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+         xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+         xmlns:sap2016="http://schemas.microsoft.com/netfx/2016/xaml/activities/presentation"
+         xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
+         xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+         xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+         xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=System.Private.CoreLib"
+         xmlns:ui="http://schemas.uipath.com/workflow/activities"
+         xmlns:uix="http://schemas.uipath.com/workflow/activities/uix"
+         xmlns:ue="clr-namespace:UiPath.Excel;assembly=UiPath.Excel.Activities"
+         xmlns:ueab="clr-namespace:UiPath.Excel.Activities.Business;assembly=UiPath.Excel.Activities"
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         mc:Ignorable="sap sap2010 sap2016 sads">
+  <x:Members>
+    <x:Property Name="in_SapSystemId" Type="InArgument(x:String)" />
+    <x:Property Name="in_Mandant" Type="InArgument(x:String)" />
+    <x:Property Name="in_Transaction" Type="InArgument(x:String)" />
+    <x:Property Name="in_SapUser" Type="InArgument(x:String)" />
+    <x:Property Name="in_SapPassword" Type="InArgument(x:String)" />
+  </x:Members>
+  <TryCatch DisplayName="Workflow TryCatch">
+    <ActivityAction x:TypeArguments="s:Exception" faultVariable="exception">
+      <Catch>
+        <LogMessage Level="Error" Message="[SAPME22N.ValidateOrderPrice] FEHLER: {exception.Message}" />
+        <Rethrow />
+      </Catch>
+    </ActivityAction>
+    <Sequence DisplayName="Main Sequence">
+      <LogMessage Level="Info" Message="[SAPME22N.ValidateOrderPrice] Start" />
+      <ueab:SapLogin DisplayName="SAP Login" sap:VirtualizedContainerService.HintSize="1090.4,25964.8" sap2010:WorkflowViewState.IdRef="ActivityBuilder_1">
+        <ueab:SapLogin.SapSystemId>
+          <InArgument x:TypeArguments="x:String">[in_SapSystemId]</InArgument>
+        </ueab:SapLogin.SapSystemId>
+        <ueab:SapLogin.Mandant>
+          <InArgument x:TypeArguments="x:String">[in_Mandant]</InArgument>
+        </ueab:SapLogin.Mandant>
+        <ueab:SapLogin.User>
+          <InArgument x:TypeArguments="x:String">[in_SapUser]</InArgument>
+        </ueab:SapLogin.User>
+        <ueab:SapLogin.Password>
+          <GetCredential DisplayName="Get SAP Password" sap:VirtualizedContainerService.HintSize="1090.4,25964.8" sap2010:WorkflowViewState.IdRef="ActivityBuilder_2">
+            <GetCredential.CredentialType>
+              <InArgument x:TypeArguments="x:String">[in_SapPassword]</InArgument>
+            </GetCredential.CredentialType>
+          </GetCredential>
+        </ueab:SapLogin.Password>
+      </ueab:SapLogin>
+      <!-- Add your SAP ME22N steps here -->
+      <LogMessage Level="Info" Message="[SAPME22N.ValidateOrderPrice] Abgeschlossen" />
+    </Sequence>
+  </TryCatch>
+</Activity>

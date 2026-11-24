@@ -1,0 +1,19 @@
+{
+  "total_pairs": 25,
+  "train": 21,
+  "val": 2,
+  "test": 2,
+  "source_workflows": 1,
+  "rule_usage": {
+    "remove_trycatch": 1,
+    "remove_logging": 1,
+    "remove_start_log": 0,
+    "hardcode_credentials": 0,
+    "remove_display_names": 1,
+    "remove_timeout_ms": 1,
+    "remove_rethrow": 0,
+    "add_magic_numbers": 1,
+    "wrong_variable_naming": 0,
+    "remove_finally": 0
+  }
+}

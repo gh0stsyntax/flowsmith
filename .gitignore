@@ -1,0 +1,22 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+.claude/
+.vscode/
+
+# Trainingsdaten und Modelle bleiben lokal
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/example_*.xaml
+data/processed/
+data/training/
+models/**/*.gguf
+models/checkpoints/
+
+# Laufzeit
+output/
+logs/
+dist/
+build/

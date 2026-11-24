@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Activity x:Class="EmailProcessing.Workflow" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+         xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+         xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+         xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+         xmlns:sap2016="http://schemas.microsoft.com/netfx/2016/xaml/activities/presentation"
+         xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
+         xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+         xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+         xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=System.Private.CoreLib"
+         xmlns:ui="http://schemas.uipath.com/workflow/activities"
+         xmlns:uix="http://schemas.uipath.com/workflow/activities/uix"
+         xmlns:ue="clr-namespace:UiPath.Excel;assembly=UiPath.Excel.Activities"
+         xmlns:ueab="clr-namespace:UiPath.Excel.Activities.Business;assembly=UiPath.Excel.Activities"
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         mc:Ignorable="sap sap2010 sap2016 sads">
+  <x:Members>
+    <x:Property Name="in_MailFolder" Type="InArgument(x:String)" />
+    <x:Property Name="in_SubjectFilter" Type="InArgument(x:String)" />
+    <x:Property Name="in_AttachmentPath" Type="InArgument(x:String)" />
+    <x:Property Name="out_MailCount" Type="OutArgument(x:Int32)" />
+  </x:Members>
+  <TryCatch DisplayName="Workflow TryCatch">
+    <TryCatch.Try>
+      <LogMessage Level="Info" Message="EmailProcessing Workflow Start" DisplayName="Start Logging"/>
+      <ui:ReadMailFolder FolderPath="[in_MailFolder]" DisplayName="Read Mail Folder"/>
+      <Assign DisplayName="Filter Mails">
+        <Assign.To>
+          <OutArgument x:TypeArguments="sd:DataTable">[filteredMails]</OutArgument>
+        </Assign.To>
+        <Assign.Value>
+          <InArgument x:TypeArguments="sd:DataTable">
+            <ui:ReadMailFolder.Result>
+              <ui:FilterMails Filter="[in_SubjectFilter]" DisplayName="Filter Mails"/>
+            </ui:ReadMailFolder.Result>
+          </InArgument>
+        </Assign.Value>
+      </Assign>
+      <Assign DisplayName="Count Mails">
+        <Assign.To>
+          <OutArgument x:TypeArguments="x:Int32">[out_MailCount]</OutArgument>
+        </Assign.To>
+        <Assign.Value>
+          <InArgument x:TypeArguments="x:Int32">
+            <ui:GetRowCount DataTable="[filteredMails]" DisplayName="Get Row Count"/>
+          </InArgument>
+        </Assign.Value>
+      </Assign>
+      <ForEach x:TypeArguments="sd:DataRow" Values="[filteredMails.Rows]" DisplayName="Process Each Mail">
+        <ForEach.Body>
+          <Sequence DisplayName="Process Mail">
+            <ui:GetMailAttachments MailRow="[currentItem]" AttachmentPath="[in_AttachmentPath]" DisplayName="Get Attachments"/>
+            <ui:MoveMail MailRow="[currentItem]" FolderPath="[in_MailFolder]/Processed" DisplayName="Move Mail to Processed Folder"/>
+          </Sequence>
+        </ForEach.Body>
+      </ForEach>
+      <LogMessage Level="Info" Message="EmailProcessing Workflow Abgeschlossen" DisplayName="End Logging"/>
+    </TryCatch.Try>
+    <TryCatch.Catch>
+      <Catch x:TypeArguments="s:Exception" faultVariable="exception">
+        <LogMessage Level="Error" Message="EmailProcessing FEHLER: {exception.Message}" DisplayName="Log Error"/>
+        <Rethrow DisplayName="ReThrow Exception"/>
+      </Catch>
+    </TryCatch.Catch>
+  </TryCatch>
+</Activity>

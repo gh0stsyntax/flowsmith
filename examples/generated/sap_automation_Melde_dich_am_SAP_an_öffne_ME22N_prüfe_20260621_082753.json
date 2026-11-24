@@ -1,0 +1,16 @@
+{
+  "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+  "category": "sap_automation",
+  "score": 69,
+  "attempts": 1,
+  "ablation_condition": "full_system",
+  "model": "xaml-specialist-lora",
+  "component_scores": {
+    "structure": 100,
+    "logging": 100,
+    "naming": 100,
+    "security": 70,
+    "completeness": 100
+  },
+  "generated_at": "20260621_082753"
+}

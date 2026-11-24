@@ -1,0 +1,90 @@
+{
+  "name": "SAPBestellungPruefen",
+  "category": "sap_automation",
+  "description": "Prüft Bestellpreise in SAP ME22N",
+  "packages": [
+    "UiPath.System.Activities",
+    "UiPath.SAP.Activities"
+  ],
+  "arguments": [
+    {
+      "name": "in_Bestellnummer",
+      "type": "System.String",
+      "direction": "in",
+      "description": "Die zu prüfende SAP-Bestellnummer"
+    },
+    {
+      "name": "out_Abweichung",
+      "type": "System.Double",
+      "direction": "out",
+      "description": "Berechnete Preisabweichung in Prozent"
+    }
+  ],
+  "variables": [
+    {
+      "name": "nettowert",
+      "type": "System.Double",
+      "default": "0.0",
+      "scope": "Main"
+    },
+    {
+      "name": "berechneter",
+      "type": "System.Double",
+      "default": "0.0",
+      "scope": "Main"
+    },
+    {
+      "name": "abweichungPct",
+      "type": "System.Double",
+      "default": "0.0",
+      "scope": "Main"
+    }
+  ],
+  "activities": [
+    {
+      "id": "sap_logon",
+      "type": "SAPTransaction",
+      "display_name": "SAP Anmeldung",
+      "props": {
+        "transaction": "ME22N",
+        "selector_kind": "sap"
+      }
+    },
+    {
+      "id": "nav_cond",
+      "type": "Click",
+      "display_name": "Konditionen-Tab klicken",
+      "props": {}
+    },
+    {
+      "id": "get_netto",
+      "type": "GetText",
+      "display_name": "Nettowert lesen",
+      "props": {}
+    },
+    {
+      "id": "calc_diff",
+      "type": "Assign",
+      "display_name": "Abweichung berechnen",
+      "props": {
+        "to": "[abweichungPct]",
+        "value": "Math.Abs(berechneter - nettowert) / nettowert * 100"
+      }
+    },
+    {
+      "id": "log_diff",
+      "type": "LogMessage",
+      "display_name": "Abweichung loggen",
+      "props": {
+        "message": "[SAPBestellungPruefen] Abweichung: [abweichungPct]%"
+      }
+    }
+  ],
+  "activity_order": [
+    "sap_logon",
+    "nav_cond",
+    "get_netto",
+    "calc_diff",
+    "log_diff"
+  ]
+}

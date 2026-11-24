@@ -1,0 +1,65 @@
+{
+  "name": "EmailProcessing",
+  "category": "email_processing",
+  "description": "Verarbeitet ungelesene E-Mails aus Postfach, speichert Anhänge in Ordner und verschiebt verarbeitete Mails.",
+  "packages": [
+    "UiPath.System.Activities",
+    "UiPath.Mail.Activities"
+  ],
+  "arguments": [],
+  "variables": [
+    {
+      "name": "mails",
+      "type": "System.Collections.Generic.List`1[MailMessage]",
+      "default": null,
+      "scope": "Main"
+    },
+    {
+      "name": "attachmentPath",
+      "type": "System.String",
+      "default": "",
+      "scope": "Main"
+    }
+  ],
+  "activities": [
+    {
+      "id": "get_mails",
+      "type": "GetMailMessages",
+      "display_name": "Ungelesene Mails abrufen",
+      "props": {}
+    },
+    {
+      "id": "iterate_mails",
+      "type": "ForEach",
+      "display_name": "Jede Mail verarbeiten",
+      "props": {
+        "items": "[mails]",
+        "item": "currentMail"
+      }
+    },
+    {
+      "id": "save_attachment",
+      "type": "SaveAttachments",
+      "display_name": "Anhänge speichern",
+      "props": {
+        "attachments": "[currentMail.Attachments]",
+        "destinationFolder": "[attachmentPath]"
+      }
+    },
+    {
+      "id": "move_mail",
+      "type": "MoveEmail",
+      "display_name": "Mail verschieben",
+      "props": {
+        "mail": "[currentMail]",
+        "folderName": "Processed"
+      }
+    }
+  ],
+  "activity_order": [
+    "get_mails",
+    "iterate_mails",
+    "save_attachment",
+    "move_mail"
+  ]
+}

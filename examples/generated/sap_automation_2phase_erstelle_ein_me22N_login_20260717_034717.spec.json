@@ -1,0 +1,41 @@
+{
+  "name": "SAPME22NLogin",
+  "category": "sap_automation",
+  "description": "Erstellt ein ME22N Login in SAP",
+  "packages": [
+    "UiPath.System.Activities",
+    "UiPath.SAP.Activities"
+  ],
+  "arguments": [],
+  "variables": [
+    {
+      "name": "sapCredential",
+      "type": "System.String",
+      "default": "",
+      "scope": "Main"
+    }
+  ],
+  "activities": [
+    {
+      "id": "getCredential",
+      "type": "GetRobotCredential",
+      "display_name": "SAP-Credential abrufen",
+      "props": {
+        "credentialName": "sapCredential"
+      }
+    },
+    {
+      "id": "sapLogon",
+      "type": "SAPTransaction",
+      "display_name": "SAP ME22N Login",
+      "props": {
+        "transaction": "ME22N",
+        "selector_kind": "sap"
+      }
+    }
+  ],
+  "activity_order": [
+    "getCredential",
+    "sapLogon"
+  ]
+}

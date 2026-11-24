@@ -1,0 +1,509 @@
+{
+  "timestamp": "20260618_185354",
+  "strategies": {
+    "baseline": {
+      "label": "A) Baseline (direkt)",
+      "n": 8,
+      "n_errors": 4,
+      "avg_score": 49.8,
+      "std_score": 19.4,
+      "pass_rate": 0.0,
+      "avg_elapsed_s": 256.4,
+      "component_avgs": {
+        "structure": 91.5,
+        "logging": 85,
+        "naming": 99.5,
+        "security": 100,
+        "completeness": 73.8
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "score": 0,
+          "error": "XAML-Generierung fehlgeschlagen nach allen Versuchen",
+          "passed": false
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 23,
+          "elapsed_s": 281.6,
+          "passed": false,
+          "component_scores": {
+            "structure": 84,
+            "logging": 85,
+            "naming": 99,
+            "security": 100,
+            "completeness": 55
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "score": 0,
+          "error": "XAML-Generierung fehlgeschlagen nach allen Versuchen",
+          "passed": false
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "score": 0,
+          "error": "XAML-Generierung fehlgeschlagen nach allen Versuchen",
+          "passed": false
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 64,
+          "elapsed_s": 222.82,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Sende HTTP-POST-Request an REST-API, deserialisiere JSON-Antwort, schreibe Ergebnis in Log.",
+          "category": "api_integration",
+          "score": 64,
+          "elapsed_s": 277.04,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Kopiere alle PDF-Dateien aus Eingangsordner in Archivordner, erstelle Verarbeitungslog.",
+          "score": 0,
+          "error": "HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=300)",
+          "passed": false
+        },
+        {
+          "task": "Hole Queue-Item aus Orchestrator, verarbeite Auftragsdaten, setze TransactionStatus.",
+          "category": "orchestrator_queue",
+          "score": 48,
+          "elapsed_s": 244.29,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 99,
+            "security": 100,
+            "completeness": 70
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        }
+      ]
+    },
+    "baseline_repair": {
+      "label": "B) Baseline + Repair",
+      "n": 8,
+      "n_errors": 4,
+      "avg_score": 51.5,
+      "std_score": 13.2,
+      "pass_rate": 0.0,
+      "avg_elapsed_s": 246.5,
+      "component_avgs": {
+        "structure": 94,
+        "logging": 85,
+        "naming": 100,
+        "security": 100,
+        "completeness": 73.8
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "score": 0,
+          "error": "XAML-Generierung fehlgeschlagen nach allen Versuchen",
+          "passed": false
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 64,
+          "elapsed_s": 300.09,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "score": 0,
+          "error": "HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=300)",
+          "passed": false
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "score": 0,
+          "error": "HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=300)",
+          "passed": false
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 49,
+          "elapsed_s": 232.18,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 100,
+            "security": 100,
+            "completeness": 70
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Sende HTTP-POST-Request an REST-API, deserialisiere JSON-Antwort, schreibe Ergebnis in Log.",
+          "category": "api_integration",
+          "score": 34,
+          "elapsed_s": 253.68,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 100,
+            "security": 100,
+            "completeness": 55
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        },
+        {
+          "task": "Kopiere alle PDF-Dateien aus Eingangsordner in Archivordner, erstelle Verarbeitungslog.",
+          "score": 0,
+          "error": "HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=300)",
+          "passed": false
+        },
+        {
+          "task": "Hole Queue-Item aus Orchestrator, verarbeite Auftragsdaten, setze TransactionStatus.",
+          "category": "orchestrator_queue",
+          "score": 59,
+          "elapsed_s": 200.0,
+          "passed": false,
+          "component_scores": {
+            "structure": 94,
+            "logging": 85,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 0
+        }
+      ]
+    },
+    "two_phase": {
+      "label": "C) Zwei-Phasen",
+      "n": 8,
+      "n_errors": 0,
+      "avg_score": 43.9,
+      "std_score": 47.2,
+      "pass_rate": 50.0,
+      "avg_elapsed_s": 224.5,
+      "component_avgs": {
+        "structure": 49.5,
+        "logging": 50,
+        "naming": 50,
+        "security": 50,
+        "completeness": 44.4
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "category": "sap_automation",
+          "score": 84,
+          "elapsed_s": 184.89,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 605
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 0,
+          "elapsed_s": 174.45,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 507
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "category": "web_automation",
+          "score": 84,
+          "elapsed_s": 171.12,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 519
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "category": "email_processing",
+          "score": 0,
+          "elapsed_s": 249.73,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 483
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 99,
+          "elapsed_s": 226.43,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 393
+        },
+        {
+          "task": "Sende HTTP-POST-Request an REST-API, deserialisiere JSON-Antwort, schreibe Ergebnis in Log.",
+          "category": "api_integration",
+          "score": 84,
+          "elapsed_s": 106.83,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 349
+        },
+        {
+          "task": "Kopiere alle PDF-Dateien aus Eingangsordner in Archivordner, erstelle Verarbeitungslog.",
+          "category": "file_operations",
+          "score": 0,
+          "elapsed_s": 502.45,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 674
+        },
+        {
+          "task": "Hole Queue-Item aus Orchestrator, verarbeite Auftragsdaten, setze TransactionStatus.",
+          "category": "orchestrator_queue",
+          "score": 0,
+          "elapsed_s": 180.41,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 499
+        }
+      ]
+    },
+    "two_phase_repair": {
+      "label": "D) Zwei-Phasen + Repair ★",
+      "n": 8,
+      "n_errors": 0,
+      "avg_score": 22.9,
+      "std_score": 42.5,
+      "pass_rate": 25.0,
+      "avg_elapsed_s": 285.2,
+      "component_avgs": {
+        "structure": 24.8,
+        "logging": 25,
+        "naming": 25,
+        "security": 25,
+        "completeness": 23.1
+      },
+      "raw_results": [
+        {
+          "task": "Melde dich am SAP an, öffne ME22N, prüfe Bestellpreis gegen Nettowert, logge Abweichungen > 1%.",
+          "category": "sap_automation",
+          "score": 84,
+          "elapsed_s": 219.17,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 85
+          },
+          "repairs": 0,
+          "phase1_tokens": 520
+        },
+        {
+          "task": "Öffne Excel, lese Kundenliste, filtere Status='Aktiv', schreibe in neues Sheet 'Auswertung'.",
+          "category": "excel_automation",
+          "score": 0,
+          "elapsed_s": 461.74,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 501
+        },
+        {
+          "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+          "category": "web_automation",
+          "score": 0,
+          "elapsed_s": 266.58,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 572
+        },
+        {
+          "task": "Lese ungelesene E-Mails aus Postfach, speichere Anhänge in Ordner, verschiebe verarbeitete Mails.",
+          "category": "email_processing",
+          "score": 0,
+          "elapsed_s": 656.4,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 483
+        },
+        {
+          "task": "Führe SQL-Query auf Datenbank aus, schreibe Ergebnis-DataTable in Excel-Datei.",
+          "category": "database_operations",
+          "score": 99,
+          "elapsed_s": 155.93,
+          "passed": true,
+          "component_scores": {
+            "structure": 99,
+            "logging": 100,
+            "naming": 100,
+            "security": 100,
+            "completeness": 100
+          },
+          "repairs": 0,
+          "phase1_tokens": 474
+        },
+        {
+          "task": "Sende HTTP-POST-Request an REST-API, deserialisiere JSON-Antwort, schreibe Ergebnis in Log.",
+          "category": "api_integration",
+          "score": 0,
+          "elapsed_s": 121.3,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 397
+        },
+        {
+          "task": "Kopiere alle PDF-Dateien aus Eingangsordner in Archivordner, erstelle Verarbeitungslog.",
+          "category": "file_operations",
+          "score": 0,
+          "elapsed_s": 226.57,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 479
+        },
+        {
+          "task": "Hole Queue-Item aus Orchestrator, verarbeite Auftragsdaten, setze TransactionStatus.",
+          "category": "orchestrator_queue",
+          "score": 0,
+          "elapsed_s": 174.25,
+          "passed": false,
+          "component_scores": {
+            "structure": 0,
+            "logging": 0,
+            "naming": 0,
+            "security": 0,
+            "completeness": 0
+          },
+          "repairs": 0,
+          "phase1_tokens": 382
+        }
+      ]
+    }
+  }
+}

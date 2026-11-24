@@ -1,0 +1,16 @@
+{
+  "task": "Öffne Chrome, navigiere zu https://example.com, fülle Login-Formular aus, lade Bericht herunter.",
+  "category": "web_automation",
+  "score": 39,
+  "attempts": 1,
+  "ablation_condition": "full_system",
+  "model": "xaml-specialist-lora",
+  "component_scores": {
+    "structure": 100,
+    "logging": 100,
+    "naming": 100,
+    "security": 100,
+    "completeness": 40
+  },
+  "generated_at": "20260621_083413"
+}

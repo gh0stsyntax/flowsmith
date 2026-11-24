@@ -1,0 +1,26 @@
+# requirements_lora.txt
+# LoRA Fine-Tuning — optional, nur nötig wenn python scripts/train.py --lora
+#
+# VORAUSSETZUNG: NVIDIA GPU mit >= 8 GB VRAM
+#
+# Installieren:
+#   pip install -r requirements_lora.txt
+
+# ─── Unsloth (QLoRA, optimierte CUDA-Kernel) ──────────────────
+# Installationsreihenfolge wichtig — erst torch, dann unsloth
+torch>=2.1.0
+unsloth
+
+# ─── Training-Framework ───────────────────────────────────────
+trl>=0.7.0                  # Supervised Fine-Tuning (SFTTrainer)
+transformers>=4.36.0
+datasets>=2.16.0
+peft>=0.7.0                 # LoRA-Adapter
+bitsandbytes>=0.41.0        # 4-bit Quantisierung (QLoRA)
+
+# ─── Hinweis ──────────────────────────────────────────────────
+# unsloth muss nach torch installiert werden:
+#   pip install torch
+#   pip install unsloth
+# Oder mit CUDA-Version (empfohlen):
+#   pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"

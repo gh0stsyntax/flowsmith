@@ -1,0 +1,53 @@
+ollama:
+  base_url: "http://localhost:11434"
+  primary_model: "qwen3:14b"
+  finetuned_model: "xaml-specialist-lora"
+  generation_params:
+    temperature: 0.2
+    top_p: 0.9
+    top_k: 40
+    num_predict: 8192
+    repeat_penalty: 1.1
+    thinking: false
+    num_ctx: 8192  
+    seed: 42
+
+generation:
+  output_dir: "output/xaml"
+  max_attempts: 3
+  templates:
+    template_dir: "config/templates"
+  rag:
+    enabled: true
+    top_k: 3
+    similarity_threshold: 0.15
+  post_processing:
+    auto_format: true
+
+validation:
+  pass_threshold: 70
+  llm_review_threshold: 7
+
+training:
+  data_dir: "data/raw"
+  processed_dir: "data/processed"
+  output_dir: "models/fine_tuned"
+  checkpoint_dir: "models/checkpoints"
+  preprocessing:
+    min_xaml_size_bytes: 500
+    max_xaml_size_bytes: 500000
+    quality_threshold: 70
+  fine_tuning:
+    base_model: "qwen3:14b"
+    max_seq_length: 4096
+    batch_size: 2
+    epochs: 3
+    learning_rate: 0.0002
+
+api:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+
+ui:
+  port: 7860

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Activity x:Class="WebAutomationExample.Workflow" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+         xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+         xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+         xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+         xmlns:sap2016="http://schemas.microsoft.com/netfx/2016/xaml/activities/presentation"
+         xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
+         xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+         xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+         xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=System.Private.CoreLib"
+         xmlns:ui="http://schemas.uipath.com/workflow/activities"
+         xmlns:uix="http://schemas.uipath.com/workflow/activities/uix"
+         xmlns:ue="clr-namespace:UiPath.Excel;assembly=UiPath.Excel.Activities"
+         xmlns:ueab="clr-namespace:UiPath.Excel.Activities.Business;assembly=UiPath.Excel.Activities"
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         mc:Ignorable="sap sap2010 sap2016 sads">
+  <x:Members>
+    <x:Property Name="in_InputPath" Type="InArgument(x:String)" />
+    <x:Property Name="in_OutputPath" Type="InArgument(x:String)" />
+    <x:Property Name="in_ConfigFile" Type="InArgument(x:String)" />
+    <x:Property Name="out_ResultMessage" Type="OutArgument(x:String)" />
+  </x:Members>
+  <VisualBasic.Settings>
+    <x:Null />
+  </VisualBasic.Settings>
+  <sap:VirtualizedContainerService.HintSize>1477.6,37238.4</sap:VirtualizedContainerService.HintSize>
+  <sap2010:WorkflowViewState.IdRef>ActivityBuilder_1</sap2010:WorkflowViewState.IdRef>
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TryCatch DisplayName="Workflow TryCatch">
+    <Catch x:TypeArguments="s:Exception" faultVariable="exception">
+      <LogMessage Level="Error" Message="[WebAutomationExample.Workflow] FEHLER: {exception.Message}" />
+      <Rethrow />
+    </Catch>
+    <Finally>
+      <!-- Ressourcen freigeben hier einfügen -->
+    </Finally>
+    <Sequence DisplayName="Workflow Steps">
+      <LogMessage Level="Info" Message="[WebAutomationExample.Workflow] Start" />
+      <ui:OpenBrowser BrowserType="Chrome" Url="https://example.com" DisplayName="Öffne Chrome" />
+      <ui:NavigateToUrl Url="https://example.com/login" DisplayName="Navigiere zu Login-Seite" />
+      <ui:InputText Selector="//input[@id='username']" Text="{x:Null}" DisplayName="Füge Benutzername ein" />
+      <ui:InputText Selector="//input[@id='password']" Text="{x:Null}" DisplayName="Füge Passwort ein" />
+      <ui:ClickButton Selector="//button[@type='submit']" DisplayName="Login-Button klicken" />
+      <ui:NavigateToUrl Url="https://example.com/report" DisplayName="Navigiere zu Bericht-Seite" />
+      <ueab:DownloadFile Url="https://example.com/report.pdf" SavePath="{x:Null}" DisplayName="Bericht herunterladen" />
+      <LogMessage Level="Info" Message="[WebAutomationExample.Workflow] Abgeschlossen" />
+    </Sequence>
+  </TryCatch>
+</Activity>

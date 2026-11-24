@@ -1,0 +1,17 @@
+{
+  "total": 10,
+  "processed": 9,
+  "skipped": 1,
+  "errors": 0,
+  "duplicates": 0,
+  "by_category": {
+    "sap_automation": 4,
+    "web_automation": 4,
+    "excel_automation": 1
+  },
+  "quality_distribution": {
+    "rejected_below_30": 0,
+    "rag_only_30_69": 8,
+    "finetune_70plus": 1
+  }
+}
