@@ -51,7 +51,7 @@ An earlier run (18 June, 8 tasks, different model settings) was much weaker for 
 |---|---|
 | Compiler, 6 activity groups (core/assign, files, Excel, mail, web, HTTP) | **6/6 build** |
 | End-to-end, plain-language task → local LLM (qwen3:14b) → XAML → UiPath build | **5/5 build** (PDF archive, REST status check, CSV → Excel, file → mail, web search) |
-| Regression tests (`tests/`, no UiPath needed) | 20 passed |
+| Regression tests (`tests/`, no UiPath needed) | 20 passed; a GitHub Actions workflow runs them on Python 3.10 and 3.12 (verified locally in a clean environment with only `pytest`, `pyyaml`, `requests`) |
 
 Each of the five workflows was generated from one German sentence; the specs are stored next to the XAML in
 `examples/generated/`. Before the fixes, 0 of 5 loaded. Building is **not** the same as running: selectors are
