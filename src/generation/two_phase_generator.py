@@ -123,6 +123,73 @@ BEISPIEL-OUTPUT:
 """
 
 
+def _balance_brackets(text: str) -> str:
+    """Repair bracket structure outside JSON strings.
+
+    * a closer that does not match the open bracket is dropped;
+    * if the ROOT object would close while more content follows (e.g. '}}]}, {"id": ...' - the model closed the
+      activities array and the root one step early), that closer is dropped and the array closed just before is
+      re-opened, so the remaining items stay in the same list;
+    * missing closers at the end are appended.
+    """
+    start = text.find("{")
+    if start < 0:
+        return text
+    src = text[start:]
+    out: list = []
+    stack: list = []          # open brackets
+    closed: list = []         # (opener, index in out) of the most recent closes, for undo
+    in_str = esc = False
+    pairs = {"}": "{", "]": "["}
+    k = 0
+    while k < len(src):
+        ch = src[k]
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            k += 1
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch in "{[":
+            stack.append(ch)
+            closed.clear()
+        elif ch in "}]":
+            if not stack or stack[-1] != pairs[ch]:
+                k += 1
+                continue                                     # stray closer
+            rest = src[k + 1:].lstrip()
+            if len(stack) == 1 and rest.startswith(","):
+                # root would close early -> drop it and re-open the array that was closed right before
+                k += 1
+                for opener, idx in reversed(closed):
+                    if opener == "[":
+                        del out[idx]
+                        stack.append("[")
+                        break
+                closed.clear()
+                continue
+            closed.append((stack.pop(), len(out)))
+            out.append(ch)
+            if not stack:
+                break
+            k += 1
+            continue
+        elif not ch.isspace():
+            closed.clear()
+        out.append(ch)
+        k += 1
+    s = "".join(out).rstrip().rstrip(",")
+    for opener in reversed(stack):
+        s += "}" if opener == "{" else "]"
+    return s
+
+
 class TwoPhaseGenerator:
     """
     Zwei-Phasen-XAML-Generator.
@@ -191,16 +258,23 @@ class TwoPhaseGenerator:
         spec: Optional[Dict] = None
         phase1_tokens = 0
 
+        # Retries must differ: with a fixed seed and an identical prompt the model returned the same broken JSON
+        # three times (observed 24 Nov 2026). Each retry gets seed+attempt and the previous parse error as feedback.
+        last_error: Optional[str] = None
         for attempt in range(max_spec_attempts):
             try:
                 spec, phase1_tokens = self._generate_spec(
-                    task_description, category, additional_requirements
+                    task_description, category, additional_requirements,
+                    attempt=attempt, previous_error=last_error,
                 )
                 if self._validate_spec(spec):
                     break
+                last_error = "Spec unvollständig (Pflichtfelder name, category, activities, activity_order)"
+                spec = None
                 logger.warning("Phase 1 Versuch %d: Spec unvollständig, Retry...",
                                attempt + 1)
             except Exception as e:
+                last_error = str(e)[:300]
                 logger.error("Phase 1 Versuch %d Fehler: %s", attempt + 1, e)
                 if attempt == max_spec_attempts - 1:
                     raise RuntimeError(f"Phase 1 fehlgeschlagen nach {max_spec_attempts} Versuchen: {e}")
@@ -272,6 +346,8 @@ class TwoPhaseGenerator:
         task: str,
         category: str,
         requirements: Optional[str],
+        attempt: int = 0,
+        previous_error: Optional[str] = None,
     ) -> tuple[Dict, int]:
         """
         Ruft Ollama mit format='json' auf → garantiert valides JSON zurück.
@@ -289,12 +365,19 @@ class TwoPhaseGenerator:
         rag_hints = self._get_rag_activity_hints(task, category)
         if rag_hints:
             prompt += f"\n\nREFERENZ-AKTIVITÄTEN aus ähnlichen Workflows:\n{rag_hints}"
+        if previous_error:
+            prompt += (
+                "\n\nDEIN VORIGER VERSUCH WAR UNGÜLTIG: " + previous_error +
+                "\nRegeln: Jeder Wert in props ist ein JSON-String. VB-Ausdrücke stehen als String in eckigen "
+                "Klammern, z. B. \"range\": \"[\\\"A\\\" + (index + 2).ToString]\". Keine Operatoren außerhalb von "
+                "Strings, keine Kommentare, Klammern vollständig schließen."
+            )
 
         raw_response = self.ollama.generate(
             prompt=prompt,
             model=model,
             system=_PHASE1_SYSTEM_PROMPT,
-            seed=self.seed,
+            seed=(self.seed + attempt) if self.seed is not None else None,
             format="json",      # ← Ollama JSON-Modus: garantiert valides JSON
         )
 
@@ -381,11 +464,17 @@ class TwoPhaseGenerator:
                 return json.loads(m.group(0))
             except json.JSONDecodeError:
                 pass
+        # Models sometimes close one bracket too many ("}}]}," mid-document -> "Extra data"),
+        # observed on 24 Nov 2026 with qwen3:14b for a CSV/Excel task. Re-balance brackets outside strings.
+        try:
+            return json.loads(_balance_brackets(cleaned))
+        except json.JSONDecodeError:
+            pass
         try:
             from json_repair import json_repair
             return json_repair.loads(raw)
         except ImportError:
-            pass 
+            pass
             
         # Wenn alles scheitert, gib zumindest ein leeres Spec zurück statt abzustürzen
         raise ValueError(

@@ -246,12 +246,13 @@ class SurgicalRepair:
         # Prüfe ob TakeScreenshot bereits vorhanden ist (mit oder ohne Attribute)
         if 'TakeScreenshot' in catch_m.group(1):
             return xaml, False   # bereits vorhanden
+        # Nur in UI-Workflows: sonst erzwingt der Screenshot das UIAutomation-Paket (Studio laedt die Datei nicht)
+        from src.validation.validator import UI_ACTIVITY_PATTERN
+        if not UI_ACTIVITY_PATTERN.search(xaml):
+            return xaml, False
 
-        screenshot_xml = (
-            '      <ui:TakeScreenshot DisplayName="Screenshot bei Fehler"\n'
-            '        FileName=\'[&quot;Screenshot_&quot; + '
-            'DateTime.Now.ToString(&quot;yyyyMMdd_HHmmss&quot;) + &quot;.png&quot;]\' />\n'
-        )
+        # Kein FileName: die Eigenschaft existiert nicht ("Cannot set unknown member TakeScreenshot.FileName")
+        screenshot_xml = '      <ui:TakeScreenshot DisplayName="Screenshot bei Fehler" />\n'
 
         def add_screenshot(m: re.Match) -> str:
             block = m.group(0)

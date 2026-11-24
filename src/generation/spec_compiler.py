@@ -26,8 +26,15 @@ arXiv:2311.04397.
 
 from __future__ import annotations
 
+import re
 import textwrap
 from typing import Any, Dict, List, Optional
+from xml.sax.saxutils import escape as _xml_escape
+
+
+def _attr(value: Any) -> str:
+    """Escape a value for a double-quoted XML attribute (saxutils.escape alone leaves '"' raw)."""
+    return _xml_escape(str(value), {'"': "&quot;"})
 
 from src.generation.uipath_defaults import (
     xmlns_lines_for_activity_multiline,
@@ -50,6 +57,103 @@ def _arg_direction_tag(direction: str) -> str:
         "out": "OutArgument",
         "io":  "InOutArgument",
     }.get(direction.lower(), "InArgument")
+
+
+# .NET type name -> XAML type token. Studio rejects "InArgument(System.String)" ("type could not be resolved");
+# it expects the XAML 2006 primitives (x:String) or a prefixed CLR type (s:DateTime, sd:DataTable).
+_XAML_TYPES = {
+    "string": "x:String", "system.string": "x:String",
+    "int": "x:Int32", "int32": "x:Int32", "system.int32": "x:Int32", "integer": "x:Int32",
+    "int64": "x:Int64", "system.int64": "x:Int64", "long": "x:Int64",
+    "bool": "x:Boolean", "boolean": "x:Boolean", "system.boolean": "x:Boolean",
+    "double": "x:Double", "system.double": "x:Double", "decimal": "x:Decimal", "system.decimal": "x:Decimal",
+    "object": "x:Object", "system.object": "x:Object",
+    "datetime": "s:DateTime", "system.datetime": "s:DateTime", "timespan": "s:TimeSpan", "system.timespan": "s:TimeSpan",
+    "datatable": "sd:DataTable", "system.data.datatable": "sd:DataTable",
+    "datarow": "sd:DataRow", "system.data.datarow": "sd:DataRow",
+    "string[]": "s:String[]", "system.string[]": "s:String[]",
+    "list<string>": "scg:List(x:String)", "system.collections.generic.list<system.string>": "scg:List(x:String)",
+    "securestring": "ss:SecureString", "system.security.securestring": "ss:SecureString",
+}
+
+
+def xaml_type(type_name: str) -> str:
+    """Map a spec type ('System.String', 'Int32', 'x:String', 'DataTable' ...) to a Studio-loadable XAML type token."""
+    t = (type_name or "x:String").strip()
+    if ":" in t:                                     # already prefixed (x:String, sd:DataTable, s:DateTime)
+        return t
+    hit = _XAML_TYPES.get(t.lower())
+    if hit:
+        return hit
+    if t.startswith("System.") and t.count(".") == 1:
+        return "s:" + t.split(".", 1)[1]
+    return "x:Object"                                # unknown type -> Object rather than an unloadable token
+
+
+_PRIMITIVES = {"x:String", "x:Int32", "x:Int64", "x:Boolean", "x:Double", "x:Decimal"}
+
+# Names that may appear in VB expressions without being workflow variables.
+_VB_KNOWN = {
+    # keywords / operators / literals
+    "new", "not", "and", "or", "andalso", "orelse", "xor", "nothing", "true", "false", "if", "is", "isnot", "mod", "like",
+    "ctype", "cint", "cstr", "cdbl", "cbool", "cdate", "cdec", "clng", "directcast", "trycast", "gettype", "typeof",
+    "function", "sub", "from", "of", "me", "mybase", "string", "integer", "double", "boolean", "decimal", "object",
+    "date", "long", "short", "byte", "char", "single",
+    # VB runtime functions
+    "format", "now", "today", "trim", "len", "left", "right", "mid", "ucase", "lcase", "split", "join", "replace",
+    "isnothing", "isnumeric", "val", "chr", "asc", "vbcrlf", "vbnewline", "vblf", "vbtab", "environment",
+    # common .NET types / namespaces used in expressions
+    "system", "datetime", "timespan", "math", "convert", "path", "directory", "file", "fileinfo", "directoryinfo",
+    "array", "list", "dictionary", "datatable", "datarow", "regex", "stringcomparison", "guid", "int32", "int64",
+    "microsoft", "io", "text", "linq", "enumerable", "newtonsoft", "jobject", "jtoken", "jarray", "jsonconvert",
+    "cultureinfo", "globalization", "encoding", "uri", "net", "mail", "data", "xml", "xdocument",
+    # delegate arguments created by the templates / compiler
+    "row", "currentrow", "exception", "excelworkbookscope", "contexttarget", "item",
+}
+
+
+def _infer_type(name: str, assigned: Optional[str] = None) -> str:
+    """Type for an auto-declared variable: from its prefix, else from the value assigned to it, else String."""
+    n = name.lower()
+    for prefix, typ in (("str", "x:String"), ("int", "x:Int32"), ("cnt", "x:Int32"), ("num", "x:Int32"),
+                        ("dbl", "x:Double"), ("dec", "x:Decimal"), ("bool", "x:Boolean"), ("is", "x:Boolean"),
+                        ("has", "x:Boolean"), ("dt", "sd:DataTable"), ("arr", "s:String[]"), ("list", "scg:List(x:String)")):
+        if n.startswith(prefix + "_") or (prefix in ("str", "int", "dt", "bool", "arr") and n.startswith(prefix) and name[len(prefix):len(prefix) + 1].isupper()):
+            return typ
+    if n in ("io_datatable",) or n.endswith("datatable"):
+        return "sd:DataTable"
+    v = (assigned or "").strip().strip("[]").strip()
+    if v:
+        if v.startswith(("DateTime.Now", "Now", "Date.Now", "DateTime.Today")) and ".ToString" not in v:
+            return "s:DateTime"
+        if "GetFiles(" in v or "GetDirectories(" in v:
+            return "s:String[]"
+        if v.replace(".", "", 1).isdigit() or v.endswith((".Count", ".Length", ".Rows.Count")):
+            return "x:Int32" if "." not in v.replace(".Count", "").replace(".Length", "") else "x:Double"
+        if v in ("True", "False"):
+            return "x:Boolean"
+    return "x:String"
+
+
+def _identifiers_in_expressions(xml_text: str) -> List[str]:
+    """Free identifiers used inside [VB expressions] of attributes and element texts (string literals removed)."""
+    import html as _html
+    import re as _re
+    found: List[str] = []
+    for expr in _re.findall(r'="\[(.*?)\]"|>\[(.*?)\]<', xml_text, flags=_re.S):
+        e = _html.unescape(expr[0] or expr[1])
+        e = _re.sub(r'"(?:[^"]|"")*"', '""', e)                      # drop VB string literals
+        for m in _re.finditer(r'(?<![\w.])([A-Za-z_]\w*)', e):
+            ident = m.group(1)
+            if ident.lower() not in _VB_KNOWN and ident not in found:
+                found.append(ident)
+    return found
+
+
+def vb_string(text: str) -> str:
+    """Plain text -> VB string expression in an XML attribute, e.g. [&quot;Start&quot;]."""
+    from xml.sax.saxutils import escape as _esc
+    return "[" + _esc('"' + str(text).replace('"', '""') + '"', {'"': "&quot;"}) + "]"
 
 
 def _arg_access(direction: str) -> str:
@@ -139,7 +243,7 @@ class SpecCompiler:
         abschließenden .lstrip() auf das Gesamtergebnis verhindert dies
         strukturell — die XML-Deklaration ist garantiert das erste Zeichen.
         """
-        class_name = f"UiPath.{ws.name.replace(' ', '').replace('-', '')}"
+        class_name = "UiPath." + (re.sub(r"\W", "", ws.name, flags=re.ASCII) or "GeneratedProcess")   # x:Class must be a valid identifier
 
         xmlns_block  = xmlns_lines_for_activity_multiline(indent=" " * 9)
         members_xml  = self._build_members(ws).rstrip("\n")
@@ -180,7 +284,7 @@ class SpecCompiler:
         for arg in ws.arguments:
             access   = _arg_access(arg.direction)
             tag      = _arg_direction_tag(arg.direction)
-            type_str = arg.type if arg.type.startswith("x:") else arg.type
+            type_str = xaml_type(arg.type)
             lines.append(
                 f'    <x:Property Name="{arg.name}" '
                 f'Type="{tag}({type_str})" '
@@ -192,18 +296,9 @@ class SpecCompiler:
     # ── VisualBasic.Settings ──────────────────────────────────────────────────
 
     def _build_vb_settings(self, ws: WorkflowSpec) -> str:
-        packages = " ".join(ws.packages)
-        return (
-            '  <mva:VisualBasic.Settings>\n'
-            '    <mva:VisualBasicSettings>\n'
-            '      <mva:VisualBasicSettings.ImportedNamespaces>\n'
-            '        <mva:VisualBasicImportReference Assembly="System.Core" Import="System" />\n'
-            '        <mva:VisualBasicImportReference Assembly="System.Data" Import="System.Data" />\n'
-            '        <mva:VisualBasicImportReference Assembly="System.Xml.Linq" Import="System.Xml.Linq" />\n'
-            '      </mva:VisualBasicSettings.ImportedNamespaces>\n'
-            '    </mva:VisualBasicSettings>\n'
-            '  </mva:VisualBasic.Settings>\n'
-        )
+        # Studio writes exactly this; the WF3-style VisualBasicSettings.ImportedNamespaces block fails to load
+        # ("Cannot set unknown member ...ImportedNamespaces"). Imports live in TextExpression.NamespacesForImplementation.
+        return '  <mva:VisualBasic.Settings>\n    <x:Null />\n  </mva:VisualBasic.Settings>\n'
 
     # ── TryCatch-Wrapper ──────────────────────────────────────────────────────
 
@@ -213,7 +308,7 @@ class SpecCompiler:
         finally_blk = self._build_finally(ws)
 
         return (
-            f'<TryCatch DisplayName="{ws.name} TryCatch">\n'
+            f'<TryCatch DisplayName="{_attr(ws.name)} TryCatch">\n'
             f'  <TryCatch.Try>\n'
             f'{_indent(main_seq, 4)}\n'
             f'  </TryCatch.Try>\n'
@@ -228,21 +323,40 @@ class SpecCompiler:
 
     # ── Main Sequence ─────────────────────────────────────────────────────────
 
+    def _auto_declare(self, ws: WorkflowSpec, rendered_xml: str) -> None:
+        """Declare every free identifier used in expressions that is not an argument/variable.
+        LLM specs and template defaults (str_Response, str_FileContent ...) referenced undeclared names
+        -> Studio: BC30451 'x' is not declared (all 5 end-to-end workflows on 24 Nov 2026)."""
+        from src.generation.workflow_spec import WorkflowVariable
+        known = {v.name for v in ws.variables} | {a.name for a in ws.arguments}
+        assigned = {}
+        for act in ws.activities:
+            if act.type == "Assign":
+                assigned[str((act.props or {}).get("to") or "").strip("[] ")] = str((act.props or {}).get("value") or "")
+        for ident in _identifiers_in_expressions(rendered_xml):
+            if ident not in known:
+                ws.variables.append(WorkflowVariable(name=ident, type=_infer_type(ident, assigned.get(ident))))
+                known.add(ident)
+
     def _build_main_sequence(self, ws: WorkflowSpec) -> str:
-        var_xml   = self._build_variables(ws)
         acts_xml  = self._build_activities(ws)
+        before = len(ws.variables)
+        self._auto_declare(ws, acts_xml)
+        if len(ws.variables) != before:                 # Assign types depend on declarations -> render again
+            acts_xml = self._build_activities(ws)
+        var_xml   = self._build_variables(ws)
 
         # Argument-Werte als lesbare Liste für den Start-Log
         arg_names = ", ".join(a.name for a in ws.arguments[:3]) if ws.arguments else ""
         arg_hint  = f" - {arg_names}" if arg_names else ""
 
         start_log = (
-            f'<ui:LogMessage DisplayName="Log Start" Level="Information" '
-            f'Message="[{ws.name}] Start{arg_hint}" />'
+            f'<ui:LogMessage DisplayName="Log Start" Level="Info" '
+            f'Message="{vb_string(f"[{ws.name}] Start{arg_hint}")}" />'
         )
         end_log = (
-            f'<ui:LogMessage DisplayName="Log Ende" Level="Information" '
-            f'Message="[{ws.name}] Abgeschlossen" />'
+            f'<ui:LogMessage DisplayName="Log Ende" Level="Info" '
+            f'Message="{vb_string(f"[{ws.name}] Abgeschlossen")}" />'
         )
 
         return (
@@ -263,11 +377,19 @@ class SpecCompiler:
         lines = ["<Sequence.Variables>"]
         for var in ws.variables:
             default_attr = ""
-            if var.default is not None:
-                from xml.sax.saxutils import escape as _esc
-                default_attr = f' Default="{_esc(str(var.default))}"'
+            typ = xaml_type(var.type)
+            d = None if var.default is None else str(var.default).strip()
+            if d and not (d.startswith("[") and d.endswith("]")) and typ not in _PRIMITIVES:
+                # "Literal only supports value types and System.String" -> no literal defaults for DataTable/Object/...
+                d = "[New System.Data.DataTable]" if typ == "sd:DataTable" else None
+            if d == "" and typ != "x:String":
+                d = None
+            if d and typ == "x:String" and len(d) >= 2 and d[0] == d[-1] == '"':
+                d = d[1:-1]                              # String Default is a literal: '"A1:B100"' -> 'A1:B100'
+            if d is not None:
+                default_attr = f' Default="{_attr(d)}"'
             lines.append(
-                f'  <Variable x:TypeArguments="{var.type}" '
+                f'  <Variable x:TypeArguments="{xaml_type(var.type)}" '
                 f'Name="{var.name}"{default_attr} />'
             )
         lines.append("</Sequence.Variables>")
@@ -286,32 +408,65 @@ class SpecCompiler:
         order    = ws.activity_order or [a.id for a in ws.activities]
         parts: List[str] = []
 
+        # UI activities after OpenBrowser go INTO the browser scope with partial selectors.
+        # Flat placement with full <html app=...> selectors fails Studio's analyzer (UI-DBP-006, error level).
+        UI_IN_SCOPE = {"Click", "NClick", "TypeInto", "NTypeInto", "GetText", "NGetText", "GetValue",
+                       "WaitForElement", "WaitUiElementAppear", "NavigateTo"}
+        browser_idx: Optional[int] = None
+        scope_parts: List[str] = []
+
         for act_id in order:
             act = act_map.get(act_id)
             if act is None:
                 continue
 
+            props = dict(act.props or {})
+            in_scope = browser_idx is not None and act.type in UI_IN_SCOPE
+            if in_scope and not props.get("selector"):
+                props["selector_kind"] = "webctrl"
+            if act.type in ("CloseBrowser", "CloseTab"):
+                browser_idx = None                       # Scope endet; CloseTab bleibt ausserhalb
+            if act.type == "Assign" and not props.get("type"):
+                # Typ aus Zielvariable/-argument ableiten (sonst Object -> Int32 = Compilerfehler in Studio)
+                ziel = str(props.get("to") or "").strip("[] ")
+                typen = {v.name: v.type for v in ws.variables}
+                typen.update({a.name: a.type for a in ws.arguments})
+                if ziel in typen:
+                    props["type"] = xaml_type(typen[ziel])
             xml_fragment = render_activity_xml(
                 act.type,
                 act.display_name,
-                act.props,
+                props,
             )
 
-            if xml_fragment:
+            if xml_fragment and in_scope:
+                scope_parts.append(xml_fragment)
+                parts[browser_idx] = self._browser_with_body(parts[browser_idx], scope_parts)
+            elif xml_fragment:
                 parts.append(xml_fragment)
+                if act.type == "OpenBrowser":
+                    browser_idx, scope_parts = len(parts) - 1, []
             else:
                 # Fallback: LogMessage mit Hinweis
                 dn = act.display_name or act.type
                 parts.append(
-                    f'      <ui:LogMessage DisplayName="{dn} [TODO: Implementieren]" '
-                    f'Level="Warning" '
-                    f'Message="[{ws.name}] SCHRITT AUSSTEHEND: {dn} ({act.type})" />'
+                    f'      <ui:LogMessage DisplayName="{_attr(dn)} [TODO: Implementieren]" '
+                    f'Level="Warn" '
+                    f'Message="{vb_string(f"[{ws.name}] SCHRITT AUSSTEHEND: {dn} ({act.type})")}" />'
                 )
 
         return "\n".join(parts) if parts else (
             '      <ui:LogMessage DisplayName="Hauptlogik (TODO)" '
-            'Level="Warning" Message="Keine Aktivitäten im Spec definiert" />'
+            f'Level="Warn" Message="{vb_string("Keine Aktivitäten im Spec definiert")}" />'
         )
+
+    @staticmethod
+    def _browser_with_body(browser_xml: str, inner: List[str]) -> str:
+        """Replace the (empty or previous) body Sequence of an OpenBrowser fragment with the scoped activities."""
+        import re as _re
+        body = "\n".join(_indent(x.strip("\n"), 6) for x in inner)
+        neu = f'<Sequence DisplayName="Do">\n{body}\n            </Sequence>'
+        return _re.sub(r'<Sequence DisplayName="Do"(?: />|>.*?\n\s*</Sequence>)', lambda m: neu, browser_xml, count=1, flags=_re.S)
 
     # ── Catch-Block ───────────────────────────────────────────────────────────
 
@@ -335,17 +490,21 @@ class SpecCompiler:
             '&quot;yyyyMMdd_HHmmss&quot;) + &quot;.png&quot;]'
         )
         error_message_expr = (
-            f'[&quot;[{ws.name}] FEHLER: &quot; + exception.Message]'
+            '[&quot;[' + _attr(ws.name.replace('"', '""')).replace('&quot;', '&quot;&quot;') + '] FEHLER: &quot; + exception.Message]'
         )
+        # TakeScreenshot lives in UiPath.UIAutomation.Activities: only UI workflows reference that package.
+        # In a pure file/Excel/mail project it fails to load ("Cannot create unknown type ...TakeScreenshot").
+        cat = (ws.category or "").lower()
+        ui_flow = any(k in cat for k in ("web", "scraping", "sap", "desktop", "ui"))
+        screenshot_xml = '      <ui:TakeScreenshot DisplayName="Screenshot bei Fehler" />\n' if ui_flow else ''
         return (
-            '<Catch x:TypeArguments="s:Exception" faultVariable="exception">\n'
+            '<Catch x:TypeArguments="s:Exception">\n'
             '  <ActivityAction x:TypeArguments="s:Exception">\n'
             '    <ActivityAction.Argument>\n'
             '      <DelegateInArgument x:TypeArguments="s:Exception" Name="exception" />\n'
             '    </ActivityAction.Argument>\n'
             '    <Sequence DisplayName="Fehlerbehandlung">\n'
-            f'      <ui:TakeScreenshot DisplayName="Screenshot bei Fehler" '
-            f'FileName="{screenshot_expr}" />\n'
+            f'{screenshot_xml}'
             f'      <ui:LogMessage DisplayName="Log Fehler" Level="Error"\n'
             f'        Message="{error_message_expr}" />\n'
             '      <Rethrow DisplayName="Exception weiterleiten" />\n'
@@ -365,24 +524,24 @@ class SpecCompiler:
 
         if "web" in cat or "scraping" in cat:
             inner = (
-                '<ui:CloseBrowser DisplayName="Browser schließen (Cleanup)" />\n'
+                '<ui:CloseTab DisplayName="Browser-Tab schließen (Cleanup)" ContinueOnError="True" />\n'
                 f'<ui:LogMessage DisplayName="Cleanup abgeschlossen" '
-                f'Level="Information" Message="[{ws.name}] Cleanup OK" />'
+                f'Level="Info" Message="{vb_string(f"[{ws.name}] Cleanup OK")}" />'
             )
         elif "sap" in cat:
             inner = (
-                f'<ui:LogMessage DisplayName="SAP Cleanup" Level="Information" '
-                f'Message="[{ws.name}] SAP-Session cleanup (ggf. Logoff implementieren)" />'
+                f'<ui:LogMessage DisplayName="SAP Cleanup" Level="Info" '
+                f'Message="{vb_string(f"[{ws.name}] SAP-Session cleanup (ggf. Logoff implementieren)")}" />'
             )
         elif "excel" in cat:
             inner = (
-                f'<ui:LogMessage DisplayName="Excel Cleanup" Level="Information" '
-                f'Message="[{ws.name}] Excel-Dateien ggf. schließen" />'
+                f'<ui:LogMessage DisplayName="Excel Cleanup" Level="Info" '
+                f'Message="{vb_string(f"[{ws.name}] Excel-Dateien ggf. schließen")}" />'
             )
         else:
             inner = (
-                f'<ui:LogMessage DisplayName="Cleanup" Level="Information" '
-                f'Message="[{ws.name}] Ressourcen freigeben" />'
+                f'<ui:LogMessage DisplayName="Cleanup" Level="Info" '
+                f'Message="{vb_string(f"[{ws.name}] Ressourcen freigeben")}" />'
             )
 
         return (

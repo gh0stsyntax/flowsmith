@@ -128,6 +128,10 @@ _XAML_KEYWORDS: Set[str] = {
     'Target', 'Body', 'Result', 'TargetSelector', 'ActivityAction', 'DelegateInArgument'
 }
 
+# UI-Automation erkennen (dort gehoert ein Screenshot in den Catch-Block)
+UI_ACTIVITY_PATTERN = re.compile(r"<(?:ui:(?:OpenBrowser|AttachBrowser|AttachWindow|OpenApplication|Click|TypeInto|GetValue|"
+                                 r"WaitUiElementAppear|NavigateTo|CloseTab)|uix:)\b")
+
 # Scoring-Gewichte pro Schweregrad
 _SEVERITY_WEIGHTS: Dict[str, int] = {
     'critical': -30,
@@ -396,8 +400,9 @@ class XAMLValidator:
                            'message': 'Kein Finally-Block für Ressourcen-Cleanup '
                                       '(Browser schließen, SAP abmelden etc.).'})
 
-        # 3.4 TakeScreenshot im Catch
-        if has_trycatch:
+        # 3.4 TakeScreenshot im Catch - nur fuer UI-Workflows sinnvoll (TakeScreenshot gehoert zu
+        # UiPath.UIAutomation.Activities; in reinen Datei-/API-Workflows wuerde es das Paket erzwingen)
+        if has_trycatch and UI_ACTIVITY_PATTERN.search(xaml):
             catch_block = self._extract_catch_content(xaml)
             if catch_block and 'TakeScreenshot' not in catch_block:
                 issues.append({'severity': 'info', 'rule': 'no_screenshot_in_catch',

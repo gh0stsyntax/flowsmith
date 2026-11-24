@@ -13,9 +13,33 @@ def _a(s: str) -> str:
     return html.escape(s, quote=True)
 
 
+def _expr(s: str) -> str:
+    """Wrap a VB expression in [ ] unless it already is one (Studio treats [..] as an expression)."""
+    s = str(s).strip()
+    return s if s.startswith("[") and s.endswith("]") else f"[{s}]"
+
+
+def _vb(text: str) -> str:
+    """Log/message text -> escaped VB string expression. Text that is already a full [expression] is kept;
+    plain text (even if it starts with '[Workflow] ...') becomes a string literal so it compiles."""
+    s = str(text)
+    inner = s[1:-1] if s.startswith("[") and s.endswith("]") else ""
+    if inner and ('"' in inner or "+" in inner or "." in inner and " " not in inner):
+        return _a(s)
+    return _a("[" + '"' + s.replace('"', '""') + '"' + "]")
+
+
+def _vb_or_expr(s: str) -> str:
+    """Keep [expressions]; turn plain literals (URL, sheet name, address) into a quoted VB string."""
+    s = str(s)
+    return s if s.startswith("[") and s.endswith("]") else '["' + s.replace('"', '""') + '"]'
+
+
 def _sel_placeholder(kind: str = "web") -> str:
     if kind == "sap":
         return "&lt;wnd app='saplogon.exe' /&gt;"
+    if kind == "webctrl":                       # partial selector inside an OpenBrowser/AttachBrowser scope
+        return "&lt;webctrl tag='INPUT' /&gt;"
     return "&lt;html app='chrome.exe' title='*' /&gt;"
 
 
@@ -30,90 +54,113 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
     sel_s = _a(sel) if sel else _sel_placeholder(str(props.get("selector_kind") or "web"))
 
     if t in ("Click", "NClick"):
-        return f"""      <ui:Click ClickType="CLICK_SINGLE" DisplayName="{_a(dn)}" MouseButton="BTN_LEFT" TimeoutMS="{timeout}">
+        return f"""      <ui:Click ClickType="CLICK_SINGLE" DisplayName="{_a(dn)}" KeyModifiers="None" MouseButton="BTN_LEFT">
         <ui:Click.Target>
-          <ui:Target Selector="{sel_s}" />
+          <ui:Target Selector="{sel_s}" TimeoutMS="{timeout}" />
         </ui:Click.Target>
       </ui:Click>"""
 
     if t in ("TypeInto", "NTypeInto"):
-        text_expr = props.get("text") or "[str_InputText]"
-        return f"""      <ui:TypeInto ClickBeforeMode="Single" DisplayName="{_a(dn)}" EmptyFieldMode="SingleLine" Text="{_a(text_expr)}" TimeoutMS="{timeout}">
+        text_expr = _expr(props.get("text") or "str_InputText")
+        return f"""      <ui:TypeInto ClickBeforeTyping="True" DisplayName="{_a(dn)}" EmptyField="True" Text="{_a(text_expr)}">
         <ui:TypeInto.Target>
-          <ui:Target Selector="{sel_s}" />
+          <ui:Target Selector="{sel_s}" TimeoutMS="{timeout}" />
         </ui:TypeInto.Target>
       </ui:TypeInto>"""
 
-    if t in ("GetText", "NGetText"):
-        return f"""      <ui:GetText DisplayName="{_a(dn)}" TimeoutMS="{timeout}">
-        <ui:GetText.Target>
-          <ui:Target Selector="{sel_s}" />
-        </ui:GetText.Target>
-      </ui:GetText>"""
+    if t in ("GetText", "NGetText", "GetValue"):
+        out = props.get("output") or props.get("value") or "[str_Text]"
+        return f"""      <ui:GetValue DisplayName="{_a(dn)}">
+        <ui:GetValue.Value>
+          <OutArgument x:TypeArguments="x:String">{_a(_expr(out))}</OutArgument>
+        </ui:GetValue.Value>
+        <ui:GetValue.Target>
+          <ui:Target Selector="{sel_s}" TimeoutMS="{timeout}" />
+        </ui:GetValue.Target>
+      </ui:GetValue>"""
 
-    if t == "WaitForElement":
-        return f"""      <ui:WaitForElement DisplayName="{_a(dn)}" TimeoutMS="{timeout}">
-        <ui:WaitForElement.Target>
-          <ui:Target Selector="{sel_s}" />
-        </ui:WaitForElement.Target>
-      </ui:WaitForElement>"""
+    if t in ("WaitForElement", "WaitUiElementAppear"):
+        return f"""      <ui:WaitUiElementAppear DisplayName="{_a(dn)}">
+        <ui:WaitUiElementAppear.Target>
+          <ui:Target Selector="{sel_s}" TimeoutMS="{timeout}" />
+        </ui:WaitUiElementAppear.Target>
+      </ui:WaitUiElementAppear>"""
 
     if t == "OpenBrowser":
         url = props.get("url") or "https://example.com"
         browser = props.get("browser_type") or "Chrome"
-        return f"""      <ui:OpenBrowser BrowserType="{browser}" DisplayName="{_a(dn)}" Url="{_a(url)}" />"""
+        return f"""      <ui:OpenBrowser BrowserType="{browser}" DisplayName="{_a(dn)}" Url="{_a(_vb_or_expr(url))}">
+        <ui:OpenBrowser.Body>
+          <ActivityAction x:TypeArguments="x:Object">
+            <ActivityAction.Argument>
+              <DelegateInArgument x:TypeArguments="x:Object" Name="ContextTarget" />
+            </ActivityAction.Argument>
+            <Sequence DisplayName="Do" />
+          </ActivityAction>
+        </ui:OpenBrowser.Body>
+      </ui:OpenBrowser>"""
 
     if t == "NavigateTo":
         url = props.get("url") or "https://example.com"
-        return f"""      <ui:NavigateTo DisplayName="{_a(dn)}" Url="{_a(url)}" />"""
+        return f"""      <ui:NavigateTo DisplayName="{_a(dn)}" Url="{_a(_vb_or_expr(url))}" />"""
 
-    if t == "CloseBrowser":
-        return f"""      <ui:CloseBrowser DisplayName="{_a(dn)}" />"""
+    if t in ("CloseBrowser", "CloseTab"):
+        return f"""      <ui:CloseTab DisplayName="{_a(dn)}" />"""
 
     if t in ("LogMessage",):
-        msg = props.get("message") or f"[{dn}]"
-        return f"""      <ui:LogMessage DisplayName="{_a(dn)}" Level="Information" Message="{_a(msg)}" />"""
+        msg = str(props.get("message") or dn)
+        level = {"information": "Info", "warning": "Warn"}.get(str(props.get("level") or "Info").lower(), str(props.get("level") or "Info"))
+        return f"""      <ui:LogMessage DisplayName="{_a(dn)}" Level="{_a(level)}" Message="{_vb(msg)}" />"""
+
+    if t == "Assign":
+        to = _expr(props.get("to") or "[str_Result]")
+        value = _expr(props.get("value") or '""')
+        typ = props.get("type") or "x:Object"
+        return f"""      <Assign DisplayName="{_a(dn)}">
+        <Assign.To>
+          <OutArgument x:TypeArguments="{_a(typ)}">{_a(to)}</OutArgument>
+        </Assign.To>
+        <Assign.Value>
+          <InArgument x:TypeArguments="{_a(typ)}">{_a(value)}</InArgument>
+        </Assign.Value>
+      </Assign>"""
 
     # ── Excel (UiPath.Excel.Activities, ui:) ─────────────────────────────────
     if t == "ReadRange":
         path = props.get("workbook_path") or "[in_ExcelFilePath]"
         sheet = props.get("sheet_name") or "Sheet1"
         dt = props.get("data_table") or "[io_DataTable]"
-        return f"""      <ui:ReadRange DisplayName="{_a(dn)}" WorkbookPath="{_a(path)}" SheetName="{_a(sheet)}" AddHeaders="True">
-        <ui:ReadRange.Result>
-          <OutArgument x:TypeArguments="sd:DataTable">{dt}</OutArgument>
-        </ui:ReadRange.Result>
-      </ui:ReadRange>"""
+        return f"""      <ui:ReadRange DisplayName="{_a(dn)}" WorkbookPath="{_a(_expr(path))}" SheetName="{_a(_vb_or_expr(sheet))}" Range="{_a(_vb_or_expr(props.get('range') or ''))}" AddHeaders="True" DataTable="{_a(_expr(dt))}" />"""
 
     if t == "WriteRange":
         path = props.get("workbook_path") or "[in_ExcelFilePath]"
         sheet = props.get("sheet_name") or "Sheet1"
         dt = props.get("data_table") or "[io_DataTable]"
         rng = props.get("range") or "A1"
-        return f"""      <ui:WriteRange DisplayName="{_a(dn)}" WorkbookPath="{_a(path)}" SheetName="{_a(sheet)}" StartingCell="{_a(rng)}" DataTable="{dt}" AddHeaders="False" />"""
+        return f"""      <ui:WriteRange DisplayName="{_a(dn)}" WorkbookPath="{_a(_expr(path))}" SheetName="{_a(_vb_or_expr(sheet))}" StartingCell="{_a(_vb_or_expr(rng))}" DataTable="{_a(_expr(dt))}" AddHeaders="True" />"""
 
     if t == "ExcelApplicationScope":
         path = props.get("workbook_path") or "[in_ExcelFilePath]"
-        return f"""      <ui:ExcelApplicationScope DisplayName="{_a(dn)}" WorkbookPath="{_a(path)}">
+        return f"""      <ui:ExcelApplicationScope DisplayName="{_a(dn)}" WorkbookPath="{_a(_expr(path))}">
         <ui:ExcelApplicationScope.Body>
-          <ActivityAction>
+          <ActivityAction x:TypeArguments="ui:WorkbookApplication">
             <ActivityAction.Argument>
-              <DelegateInArgument Name="ExcelWorkbookScope" Type="ui:WorkbookApplication" />
+              <DelegateInArgument x:TypeArguments="ui:WorkbookApplication" Name="ExcelWorkbookScope" />
             </ActivityAction.Argument>
-            <ui:LogMessage DisplayName="Inside Excel scope" Level="Information" Message="[{_a(dn)}] Excel geöffnet" />
+            <ui:LogMessage DisplayName="Inside Excel scope" Level="Info" Message="{_vb(dn + ': Excel geöffnet')}" />
           </ActivityAction>
         </ui:ExcelApplicationScope.Body>
       </ui:ExcelApplicationScope>"""
 
     if t == "ForEachRow":
         dt = props.get("data_table") or "[io_DataTable]"
-        return f"""      <ui:ForEachRow DisplayName="{_a(dn)}" DataTable="{dt}">
+        return f"""      <ui:ForEachRow DisplayName="{_a(dn)}" DataTable="{_a(_expr(dt))}">
         <ui:ForEachRow.Body>
-          <ActivityAction>
+          <ActivityAction x:TypeArguments="sd:DataRow">
             <ActivityAction.Argument>
-              <DelegateInArgument Name="row" Type="sd:DataRow" />
+              <DelegateInArgument x:TypeArguments="sd:DataRow" Name="row" />
             </ActivityAction.Argument>
-            <ui:LogMessage DisplayName="Row iteration" Level="Information" Message="Zeile verarbeiten" />
+            <ui:LogMessage DisplayName="Row iteration" Level="Info" Message="{_vb('Zeile verarbeiten')}" />
           </ActivityAction>
         </ui:ForEachRow.Body>
       </ui:ForEachRow>"""
@@ -128,12 +175,16 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
         to_addr = props.get("to") or "user@example.com"
         subj = props.get("subject") or "[str_Subject]"
         body = props.get("body") or "[str_Body]"
-        return f"""      <ui:SendMail DisplayName="{_a(dn)}" To="{_a(to_addr)}" Subject="{_a(subj)}" Body="{_a(body)}" />"""
+        server = props.get("server") or "smtp.example.com"
+        port = str(int(props.get("port") or 587))
+        return f"""      <ui:SendMail DisplayName="{_a(dn)}" To="{_a(_vb_or_expr(to_addr))}" Subject="{_a(_vb_or_expr(subj))}" Body="{_a(_vb_or_expr(body))}" Server="{_a(_vb_or_expr(server))}" Port="{port}" EnableSSL="True" SecureConnection="Auto" IsBodyHtml="False" />"""
 
     # ── WebAPI ───────────────────────────────────────────────────────────────
     if t in ("HttpClient", "HTTPRequest"):
         url = props.get("url") or props.get("endpoint") or "https://api.example.com/data"
-        return f"""      <ui:HttpClient DisplayName="{_a(dn)}" Endpoint="{_a(url)}" TimeoutMS="{timeout}" ContinueOnError="False" />"""
+        method = str(props.get("method") or "GET").upper()
+        result = props.get("result") or "[str_Response]"
+        return f"""      <ui:HttpClient DisplayName="{_a(dn)}" EndPoint="{_a(_vb_or_expr(url))}" Method="{method}" AcceptFormat="JSON" AuthenticationType="None" TimeoutMS="{timeout}" Result="{_a(_expr(result))}" />"""
 
     # ── Orchestrator ───────────────────────────────────────────────────────────
     if t == "AddQueueItem":
@@ -157,30 +208,26 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
     if t == "ReadTextFile":
         p = props.get("path") or "[in_FilePath]"
         content = props.get("content") or "[str_FileContent]"
-        return f"""      <ui:ReadTextFile DisplayName="{_a(dn)}" FileName="{p}">
-        <ui:ReadTextFile.Result>
-          <OutArgument x:TypeArguments="x:String">{content}</OutArgument>
-        </ui:ReadTextFile.Result>
-      </ui:ReadTextFile>"""
+        return f"""      <ui:ReadTextFile DisplayName="{_a(dn)}" FileName="{_a(_expr(p))}" Content="{_a(_expr(content))}" />"""
 
     if t == "WriteTextFile":
         p = props.get("path") or "[in_FilePath]"
         content = props.get("content") or "[str_FileContent]"
-        return f"""      <ui:WriteTextFile DisplayName="{_a(dn)}" FileName="{p}" Text="{content}" />"""
+        return f"""      <ui:WriteTextFile DisplayName="{_a(dn)}" FileName="{_a(_expr(p))}" Text="{_a(_expr(content))}" />"""
 
     if t == "CopyFile":
         src = props.get("source") or "[in_SourcePath]"
         dst = props.get("destination") or "[in_DestPath]"
-        return f"""      <ui:CopyFile DisplayName="{_a(dn)}" Path="{src}" Destination="{dst}" />"""
+        return f"""      <ui:CopyFile DisplayName="{_a(dn)}" Path="{_a(_expr(src))}" Destination="{_a(_expr(dst))}" />"""
 
     if t == "MoveFile":
         src = props.get("source") or "[in_SourcePath]"
         dst = props.get("destination") or "[in_DestPath]"
-        return f"""      <ui:MoveFile DisplayName="{_a(dn)}" Path="{src}" Destination="{dst}" />"""
+        return f"""      <ui:MoveFile DisplayName="{_a(dn)}" Path="{_a(_expr(src))}" Destination="{_a(_expr(dst))}" />"""
 
-    if t == "DeleteFile":
+    if t in ("DeleteFile", "Delete"):
         p = props.get("path") or "[in_FilePath]"
-        return f"""      <ui:DeleteFile DisplayName="{_a(dn)}" Path="{p}" />"""
+        return f"""      <ui:Delete DisplayName="{_a(dn)}" Path="{_a(_expr(p))}" />"""
 
     # ── PDF ───────────────────────────────────────────────────────────────────
     if t == "ReadPDFText":
@@ -226,8 +273,7 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
       </ui:AttachWindow>"""
 
     if t == "TakeScreenshot":
-        file_name = props.get("file_name") or '[\"Screenshot_\" + DateTime.Now.ToString(\"yyyyMMdd_HHmmss\") + \".png\"]'
-        return f"""      <ui:TakeScreenshot DisplayName="{_a(dn)}" FileName="{file_name}" />"""
+        return f"""      <ui:TakeScreenshot DisplayName="{_a(dn)}" />"""
 
     return None
 

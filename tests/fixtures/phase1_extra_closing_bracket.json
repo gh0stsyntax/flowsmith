@@ -1,0 +1,45 @@
+{
+  "name": "SummeBestellungen",
+  "category": "excel_automation",
+  "description": "Liest eine CSV-Datei mit Bestellungen und summiert die Betraege pro Kunde, das Ergebnis wird in einer Excel-Datei gespeichert.",
+  "packages": ["UiPath.System.Activities", "UiPath.Excel.Activities"],
+  "arguments": [
+    {"name": "in_CSVFilePath", "type": "System.String", "direction": "in",
+     "description": "Pfad zur CSV-Datei mit den Bestellungen"},
+    {"name": "out_ExcelFilePath", "type": "System.String", "direction": "out",
+     "description": "Pfad zur Excel-Datei mit den summierten Beträgen pro Kunde"}
+  ],
+  "variables": [
+    {"name": "data", "type": "System.Data.DataTable", "default": "", "scope": "Main"},
+    {"name": "summe", "type": "System.Double", "default": "0.0", "scope": "Main"},
+    {"name": "kunde", "type": "System.String", "default": "", "scope": "Main"}
+  ],
+  "activities": [
+    {"id": "read_csv", "type": "ReadTextFile", "display_name": "CSV-Datei lesen",
+     "props": {"filePath": "[in_CSVFilePath]", "encoding": "UTF8"}},
+    {"id": "parse_data", "type": "Assign", "display_name": "Daten parsen",
+     "props": {"to": "[data]",
+               "value": "System.Text.RegularExpressions.Regex.Split([read_csv.Content], \"\\r?\\n\").Skip(1).Select(line => line.Split(\",\")).ToDataTable()"}},
+    {"id": "excel_scope", "type": "ExcelApplicationScope", "display_name": "Excel-Applikation starten",
+     "props": {}},
+    {"id": "create_workbook", "type": "Assign", "display_name": "Arbeitsmappe erstellen",
+     "props": {"to": "[excel_scope.Workbook]",
+               "value": "excel_scope.Application.Workbooks.Add()"}},
+    {"id": "write_header", "type": "WriteRange", "display_name": "Spaltenüberschriften schreiben",
+     "props": {"range": "'Sheet1'!A1:B1",
+               "values": "[new string[] { \"Kunde\", \"Summe\" }]"}}]},
+    {"id": "summarize_data", "type": "ForEachRow", "display_name": "Daten durchlaufen und summiert",
+     "props": {"collection": "[data]",
+               "body": [
+                 {"id": "get_kunde", "type": "Assign", "display_name": "Kundenname holen",
+                  "props": {"to": "[kunde]", "value": "[row[\"Kunde\"]]"}},
+                 {"id": "get_betrag", "type": "Assign", "display_name": "Betrag holen",
+                  "props": {"to": "[summe]", "value": "[Convert.ToDouble(row[\"Betrag\"]) + summe]"}},
+                 {"id": "write_row", "type": "WriteRange", "display_name": "Zeile in Excel schreiben",
+                  "props": {"range": "'Sheet1'!A" + (index + 2) + ":B" + (index + 2),
+                            "values": "[new string[] { kunde, summe.ToString() }]"}}]}}]},
+    {"id": "save_excel", "type": "WriteTextFile", "display_name": "Excel-Datei speichern",
+     "props": {"filePath": "[out_ExcelFilePath]", "content": "[excel_scope.Workbook.SaveAs(out_ExcelFilePath)]"}}
+  ],
+  "activity_order": ["read_csv", "parse_data", "excel_scope", "create_workbook", "write_header", "summarize_data", "save_excel"]
+}
