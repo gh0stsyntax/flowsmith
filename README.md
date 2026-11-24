@@ -83,7 +83,7 @@ The strongest effect in the benchmark comes from the **two-phase spec → compil
 
 ## Security notes (found by testing a fresh clone, fixed 24 Nov 2026)
 
-The local API used to have real holes; `tests/test_api_security.py` (23 cases, 21 of them fail on the old code) now pins the fixes:
+The local API used to have real holes; `tests/test_api_security.py` (25 cases; when I ran the first 23 against the old code, 21 failed) now pins the fixes:
 
 - `/api/download*`: the old check was `startswith()` on an unresolved path, so `..` escaped the output folder. Now `resolve()` + `relative_to()`.
 - CORS: was open to every origin; now only the local UI origins (configurable in `config.yaml`).
