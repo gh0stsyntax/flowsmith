@@ -29,6 +29,7 @@ def build_parser():
     parser.add_argument('--attempts', type=int, default=3, help='Max. attempts')
     parser.add_argument('--strategy', choices=['two-phase', 'baseline'], default='two-phase',
                         help='two-phase = spec -> compiler (+ repair), default; baseline = direct generation')
+    parser.add_argument('--seed', type=int, default=None, help='sampling seed (default: the generator default)')
     parser.add_argument('--no-repair', action='store_true', help='skip the targeted repair step (two-phase only)')
     parser.add_argument('--validate', action='store_true', help='print the validation report')
     parser.add_argument('--llm-review', action='store_true', help='enable LLM review (baseline only)')
@@ -40,7 +41,7 @@ def build_parser():
 def generate_two_phase(task, args):
     from src.generation.surgical_repair import SurgicalRepair
     from src.generation.two_phase_generator import TwoPhaseGenerator
-    result = TwoPhaseGenerator().generate(task_description=task, category=args.category,
+    result = (TwoPhaseGenerator(seed=args.seed) if args.seed is not None else TwoPhaseGenerator()).generate(task_description=task, category=args.category,
                                           additional_requirements=args.requirements, max_spec_attempts=args.attempts)
     xaml, validation = result['xaml_content'], result['validation']
     if not args.no_repair:

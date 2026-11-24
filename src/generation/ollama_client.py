@@ -73,6 +73,10 @@ class OllamaClient:
         }
         if system:
             payload["system"] = system
+        if params.get("format"):                 # "json" or a JSON schema dict -> constrained decoding in Ollama
+            payload["format"] = params["format"]
+        if params.get("seed") is not None:
+            payload["options"]["seed"] = params["seed"]
         return payload
 
     def is_available(self) -> bool:

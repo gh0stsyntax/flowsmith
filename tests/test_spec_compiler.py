@@ -146,13 +146,14 @@ def test_object_members_on_string_variables_are_removed():
     """LLM wrote [read_file.Content] / [read_csv].Content on String variables -> Studio BC30456 (24 Nov 2026)."""
     from src.generation.spec_compiler import strip_members_on_strings
     xml = ('<ui:SendMail Body="[read_file.Content]" /><InArgument>[JsonConvert.DeserializeObject([read_csv].Content)]</InArgument>'
-           '<x a="[other.Content]" /><x b="[my_read_file.Content]" /><x c="[read_file.ContentLength]" />')
+           '<x a="[other.Content]" /><x b="[my_read_file.Content]" /><x c="[read_file.Length]" /><x d="[read_file.ResponseBody]" />')
     out = strip_members_on_strings(xml, ["read_file", "read_csv"])
     assert 'Body="[read_file]"' in out
     assert "DeserializeObject(read_csv)" in out
     assert "other.Content" in out                    # unknown / non-string names stay untouched
     assert "my_read_file.Content" in out             # prefix of a longer name must not match
-    assert "read_file.ContentLength" in out          # word boundary
+    assert "read_file.Length" in out                 # real String members are kept
+    assert 'd="[read_file]"' in out                  # hallucinated members (ResponseBody, Response, ...) are dropped
 
 
 def _ctrl_spec(acts, order):
@@ -203,3 +204,33 @@ def test_empty_if_or_foreach_is_flagged_not_silent():
             {"id": "a", "type": "ForEach", "props": {"collection": "dateien", "body": ["gibt_es_nicht"]}}]
     x = SpecCompiler().compile(_ctrl_spec(acts, ["p", "a"]))
     assert x.count("TODO: Implementieren") == 2 and "<If " not in x and "<ForEach " not in x
+
+
+def test_prop_keys_in_pascal_case_are_not_silently_dropped():
+    """With a JSON schema the model answered {"To": ..., "Value": ...}; the compiler only read 'to'/'value' and
+    replaced everything by defaults (str_Result = ""), with no warning (found 24 Nov 2026)."""
+    from src.generation.workflow_spec import normalize_prop_keys
+    assert normalize_prop_keys({"To": "[a]", "Value": "1", "WorkbookPath": "p", "sheetName": "s", "Data-Table": "d"}) == \
+        {"to": "[a]", "value": "1", "workbook_path": "p", "sheet_name": "s", "data_table": "d"}
+    spec = {"name": "N", "category": "general_automation", "description": "x", "packages": [], "arguments": [],
+            "variables": [{"name": "status", "type": "System.String"}],
+            "activities": [{"id": "a", "type": "Assign", "props": {"To": "[status]", "Value": "\"ok\""}},
+                           {"id": "p", "type": "If", "props": {"Condition": "status <> \"ok\"", "Then": ["w"]}},
+                           {"id": "w", "type": "LogMessage", "props": {"Message": "nicht ok", "Level": "Warn"}}],
+            "activity_order": ["a", "p"]}
+    x = SpecCompiler().compile(spec)
+    assert '[status]</OutArgument>' in x and '[&quot;ok&quot;]</InArgument>' in x       # Assign kept its target and value
+    assert "<If Condition=" in x and 'Level="Warn"' in x                                  # If got its condition + child
+
+
+def test_assign_values_literals_and_templates_become_valid_vb():
+    r"""BC30035 'Syntax error' for [C:\Downloads]; BC30034 for [invoiceNumber] - [currentDate] (24 Nov 2026)."""
+    from src.generation.activity_templates import assign_value_to_vb as f
+    assert f(r"C:\Downloads", string_target=True) == r'"C:\Downloads"'
+    assert f("https://example.com/a", string_target=True) == '"https://example.com/a"'
+    assert f("report.txt", string_target=True) == '"report.txt"'
+    assert f("[invoiceNumber] - [currentDate]") == 'invoiceNumber & " - " & currentDate'
+    assert f("Rechnung [nr]") == '"Rechnung " & nr'
+    assert f("[status]") == "[status]"                                   # a single bracketed variable is already an expression
+    assert f('Path.Combine(a, "b")', string_target=True) == 'Path.Combine(a, "b")'   # real code stays untouched
+    assert f(r"C:\x", string_target=False) == r"C:\x"                    # non-string targets are not guessed

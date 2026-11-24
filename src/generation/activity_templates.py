@@ -44,6 +44,27 @@ def _vb(text: str) -> str:
     return _a("[" + '"' + s.replace('"', '""') + '"' + "]")
 
 
+def assign_value_to_vb(value: str, string_target: bool = False) -> str:
+    """Make an LLM-written Assign value a valid VB expression.
+    * `[invoiceNumber] - [currentDate]` (several [var] groups in text) is a template -> `invoiceNumber & " - " & currentDate`
+    * `C:\\Downloads`, `https://...`, `report.txt` for a String target is a literal, not code -> quoted
+    Anything else is passed on unchanged (C# -> VB conversion happens in the caller)."""
+    import re as _re
+    s = str(value).strip()
+    if not s:
+        return '""'
+    groups = _re.findall(r"\[([A-Za-z_]\w*)\]", s)
+    if len(groups) >= 2 or (groups and not (s.startswith("[") and s.endswith("]") and s.count("[") == 1)):
+        if '"' not in s and "(" not in s:                       # plain template text, not an expression
+            parts = _re.split(r"(\[[A-Za-z_]\w*\])", s)
+            out = [p[1:-1] if _re.fullmatch(r"\[[A-Za-z_]\w*\]", p) else '"' + p.replace('"', '""') + '"' for p in parts if p != ""]
+            return " & ".join(out)
+    if string_target and not s.startswith("["):
+        if _re.match(r"^[A-Za-z]:[\\/]", s) or _re.match(r"^(https?|ftp)://", s) or _re.fullmatch(r"[\w .-]+\.(txt|csv|xlsx?|pdf|json|xml|log)", s):
+            return '"' + s.replace('"', '""') + '"'
+    return s
+
+
 def _vb_or_expr(s: str) -> str:
     """Keep [expressions]; turn plain literals (URL, sheet name, address) into a quoted VB string."""
     s = str(s)
@@ -129,8 +150,8 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
 
     if t == "Assign":
         to = _expr(props.get("to") or "[str_Result]")
-        value = _expr(csharp_to_vb(props.get("value") or '""'))
         typ = props.get("type") or "x:Object"
+        value = _expr(csharp_to_vb(assign_value_to_vb(props.get("value") or '""', string_target=(typ == "x:String"))))
         return f"""      <Assign DisplayName="{_a(dn)}">
         <Assign.To>
           <OutArgument x:TypeArguments="{_a(typ)}">{_a(to)}</OutArgument>

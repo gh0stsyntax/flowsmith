@@ -28,6 +28,19 @@ class WorkflowVariable:
     description: Optional[str] = None
 
 
+def normalize_prop_keys(props: Dict[str, Any]) -> Dict[str, Any]:
+    """The compiler reads snake_case keys (`to`, `value`, `workbook_path`). With a JSON schema the model started to
+    answer in PascalCase (`To`, `Value`, `WorkbookPath`), and everything it said was silently replaced by defaults.
+    Keys are normalised: `WorkbookPath` / `workbookPath` / `Workbook-Path` -> `workbook_path`."""
+    import re as _re
+    out: Dict[str, Any] = {}
+    for k, v in dict(props).items():
+        key = _re.sub(r"[\s\-]+", "_", str(k).strip())
+        key = _re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", key).lower()
+        out.setdefault(key, v)                                  # first spelling wins if the model sent both
+    return out
+
+
 @dataclass
 class WorkflowActivity:
     id: str
@@ -85,7 +98,7 @@ class WorkflowSpec:
                     id=str(x.get("id")),
                     type=str(x.get("type")),
                     display_name=x.get("display_name"),
-                    props=dict(x.get("props") or {}),
+                    props=normalize_prop_keys(x.get("props") or {}),
                 )
             )
 

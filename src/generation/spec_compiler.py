@@ -164,19 +164,29 @@ def _child_ids(act: Any) -> List[str]:
     return _ids(props.get("then")) + _ids(props.get("else")) + _ids(props.get("body"))
 
 
-_STRING_MEMBERS = ("Content", "Text", "Value", "Result", "Output", "Data")
+# Real System.String members; anything else after `stringVariable.` is a hallucination and cannot compile.
+_STRING_MEMBERS_REAL = {
+    "length", "chars", "trim", "trimstart", "trimend", "split", "replace", "contains", "substring", "tostring", "toupper",
+    "tolower", "startswith", "endswith", "indexof", "lastindexof", "insert", "remove", "padleft", "padright", "equals",
+    "compareto", "format", "isnullorempty", "isnullorwhitespace", "join", "concat", "normalize", "tochararray", "gettype",
+    "gethashcode", "toupperinvariant", "tolowerinvariant", "copyto", "clone", "empty", "compare", "count", "first", "last",
+    "any", "select", "where", "tolist", "toarray", "contains", "elementat", "skip", "take", "reverse", "orderby",
+}
 
 
 def strip_members_on_strings(xml_text: str, string_vars: List[str]) -> str:
-    """`[read_file.Content]` / `[read_csv].Content` on a String variable -> the variable itself.
-    The LLM treats Read Text File's output like an object; Studio rejects it (BC30456 'Content' is not a member of
-    'String'). Found by the 24 Nov 2026 command-line run: 2 of 5 fresh tasks failed to build for this reason."""
+    """`[read_file.Content]`, `[read_csv].Content`, `response.ResponseBody` on a String variable -> the variable itself.
+    The LLM treats Read Text File / HTTP outputs like objects; Studio rejects it (BC30456 'Content' is not a member of
+    'String'). Only members that System.String does not have are removed. Seen in 9 of 20 fresh runs on 24 Nov 2026."""
     import re as _re
-    members = "|".join(_STRING_MEMBERS)
     for name in sorted(set(string_vars), key=len, reverse=True):
         n = _re.escape(name)
-        xml_text = _re.sub(rf"\[{n}\]\.(?:{members})\b", name, xml_text)                 # [var].Content
-        xml_text = _re.sub(rf"(?<![\w.]){n}\.(?:{members})\b", name, xml_text)           # var.Content
+
+        def keep_or_drop(m: "_re.Match[str]") -> str:
+            return m.group(0) if m.group("member").lower() in _STRING_MEMBERS_REAL else name
+
+        xml_text = _re.sub(rf"\[{n}\]\.(?P<member>[A-Za-z_]\w*)", keep_or_drop, xml_text)             # [var].Member
+        xml_text = _re.sub(rf"(?<![\w.]){n}\.(?P<member>[A-Za-z_]\w*)", keep_or_drop, xml_text)       # var.Member
     return xml_text
 
 

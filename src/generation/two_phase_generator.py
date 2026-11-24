@@ -45,6 +45,7 @@ from typing import Dict, List, Optional, Any
 import yaml
 
 from src.generation.spec_compiler import SpecCompiler
+from src.generation.spec_schema import SPEC_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -380,7 +381,7 @@ class TwoPhaseGenerator:
             model=model,
             system=_PHASE1_SYSTEM_PROMPT,
             seed=(self.seed + attempt) if self.seed is not None else None,
-            format="json",      # ← Ollama JSON-Modus: garantiert valides JSON
+            format=SPEC_SCHEMA,  # JSON schema -> constrained decoding: only known activity/variable types, valid structure
         )
 
         # Schätzung der Phase-1-Token-Zahl

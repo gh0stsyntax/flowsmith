@@ -50,20 +50,32 @@ An earlier run (18 June, 8 tasks, different model settings) was much weaker for 
 | Check | Result |
 |---|---|
 | Compiler, 6 activity groups (core/assign, files, Excel, mail, web, HTTP) | **6/6 build** |
-| End-to-end, 5 tasks I developed against → local LLM (qwen3:14b) → XAML → UiPath build | 5/5 build (PDF archive, REST status check, CSV → Excel, file → mail, web search) — **optimistic**, I tuned the compiler on these |
-| End-to-end, the same 5 task types re-run from the command line, 3 rounds, no tuning in between | **11–12 of 15 build (73–80 %)**; the model is not deterministic, so ±2 per round is noise at this sample size |
+| End-to-end on **8 tasks I had never seen while building the compiler** × 2 seeds (16 runs): task → local LLM (qwen3:14b) → XAML → UiPath build | **9/16 build (56 %)** — small sample, so anything from roughly 30 % to 80 % is consistent with it |
+| End-to-end on the 5 tasks I developed against | 5/5 build — **optimistic**, the compiler was tuned on exactly these |
+| Same 20 mixed runs (10 tasks × 2 seeds) before and after fixing three error classes found in them | 7/20 (35 %) → 14/20 (70 %). The fixes were derived from these runs, so 70 % is an upper bound, not the expected rate |
 | Compiler with `If` / `ForEach` / JSON access (hand-written spec, no LLM) | builds, 0 placeholders |
-| Regression tests (`tests/`, no UiPath, no LLM) | 56 passed; GitHub Actions runs them on Python 3.10 and 3.12 |
+| Regression tests (`tests/`, no UiPath, no LLM) | 67 passed; GitHub Actions runs them on Python 3.10 and 3.12 |
+
+How I measured: `scripts/generate.py --task ... --seed N`, then `scripts/uipath_build_check.py` on all outputs. A run counts
+as "builds" only if `uip rpa build` reports no error; warnings are ignored. With a fixed seed the output is
+reproducible, so repeating a seed adds no information (my first "3 rounds" were identical copies — I only noticed
+after the seed was actually forwarded to Ollama, see below).
 
 Building is **not** the same as running: selectors are placeholders, credentials/servers are examples, and the
 process logic needs a human review in Studio.
 
 **Known limits (measured on 24 Nov 2026):**
 
-- Roughly one in four generated workflows still fails the UiPath build. Typical causes: a JSON value used as `Object`
-  where `String` is required, a `String` used where a list is expected, Excel/DataTable type mismatches.
+- About four in ten generated workflows on unseen tasks still fail the UiPath build. Typical causes: variables used
+  before they are declared, a JSON value used as `Object` where `String` is required, a `String` used where a list is
+  expected, lambda variable names that clash, `System.Data` used as an expression.
 - Activity types the compiler does not implement become a visible `[TODO: Implementieren]` log step instead of silent
-  nothing: 8 such steps in 15 files. `examples/generated/api_status.xaml` contains two of them.
+  nothing: 3 such steps in 16 files. `examples/generated/api_status.xaml` contains two of them.
+- Two bugs made earlier numbers meaningless and are fixed (tests in `tests/test_ollama_payload.py`,
+  `tests/test_spec_compiler.py`): the Ollama client silently dropped `format` and `seed` (so the documented "JSON mode"
+  and reproducible seeds never existed), and the compiler silently replaced model output with defaults when the model
+  wrote property names in PascalCase. Phase 1 now uses a JSON schema (`src/generation/spec_schema.py`) so the model can
+  only pick activity and variable types the compiler implements.
 - `If` and `ForEach` are compiled (child steps are referenced by id), but the prompt does not teach the model that
   format. I tried a longer prompt that did: it scored 7/15, worse than before, and I dropped it
   (small sample, so "probably worse" rather than proven). A better route is probably few-shot examples or
