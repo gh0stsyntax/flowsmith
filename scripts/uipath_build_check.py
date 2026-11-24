@@ -43,7 +43,7 @@ def main() -> None:
     files = []
     for p in map(Path, a.paths):
         files += sorted(p.glob("*.xaml")) if p.is_dir() else [p]
-    work = Path(tempfile.mkdtemp(prefix="xaml_ml_build_"))
+    work = Path(tempfile.mkdtemp(prefix="flowsmith_build_"))
     out = _uip("rpa", "init", "--name", "BuildCheck", "--location", str(work), "--expression-language", "VisualBasic",
                "--target-framework", "Windows", "--skip-solution-registration", "--format", "json")
     template = work / "BuildCheck"

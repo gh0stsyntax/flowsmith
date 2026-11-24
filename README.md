@@ -1,4 +1,4 @@
-# xaml-ml — LLM-generated UiPath workflows ("Automating the automation")
+# flowsmith — LLM-generated UiPath workflows ("Automating the automation")
 
 Turn a plain-language task description into a runnable **UiPath XAML workflow** with a local LLM,
 then check and repair it automatically against RPA best practices.
