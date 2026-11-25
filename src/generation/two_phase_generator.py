@@ -96,10 +96,10 @@ REGELN:
 - Wähle activity.type aus validen UiPath-Aktivitäten:
   LogMessage, TryCatch, Assign, If, ForEach, While, Sequence,
   Click, TypeInto, GetText, WaitForElement, OpenBrowser, CloseBrowser,
-  NavigateTo, AttachWindow, TakeScreenshot,
+  NavigateTo, TakeScreenshot,
   ReadRange, WriteRange, ExcelApplicationScope, ForEachRow,
-  GetMailMessages, SendMail, SaveAttachments,
-  ExecuteQuery, ConnectToDatabase,
+  SendMail, SaveAttachments,
+  ExecuteQuery,
   HttpClient, DeserializeJSON,
   ReadTextFile, WriteTextFile, CopyFile, MoveFile,
   AddQueueItem, GetQueueItem, SetTransactionStatus, GetRobotCredential,
@@ -342,6 +342,35 @@ class TwoPhaseGenerator:
         """Nur Phase 2: kompiliert einen vorhandenen Spec zu XAML."""
         return self.compiler.compile(spec)
 
+    def revise_spec(self, task: str, category: Optional[str], spec: Dict[str, Any], build_errors: List[str],
+                    round_no: int = 1) -> Dict[str, Any]:
+        """Build feedback: the compiled workflow failed `uip rpa build` with `build_errors`; ask the phase-1 model for a corrected
+        spec (same schema, only what is needed to fix the errors). Returns the old spec if the answer is unusable."""
+        from src.generation.build_repair import BUILD_FIX_HINTS
+        category = category or spec.get("category") or "general_automation"
+        prompt = (
+            self._build_spec_prompt(task, category, None)
+            + "\n\nDEIN VORIGER SPEC (JSON):\n" + json.dumps(spec, ensure_ascii=False)
+            + "\n\nDER BUILD IN UIPATH STUDIO IST MIT DIESEN FEHLERN GESCHEITERT:\n- " + "\n- ".join(build_errors[:8])
+            + "\n\n" + BUILD_FIX_HINTS
+            + "\nGib den vollständigen korrigierten Spec als JSON zurück (gleiches Schema). Ändere nur, was zur Behebung der Fehler nötig ist."
+        )
+        # An unusable answer (not parseable, e.g. Ollama's "token repeat limit reached", or structurally incomplete) gets one more try
+        # with a different seed; a valid but UNCHANGED spec is the model's decision and is returned as it is.
+        for attempt in range(2):
+            try:
+                raw = self.ollama.generate(
+                    prompt=prompt, model=self._resolve_model(), system=_PHASE1_SYSTEM_PROMPT,
+                    seed=(self.seed + 100 + round_no + 1000 * attempt) if self.seed is not None else None, format=SPEC_SCHEMA,
+                )
+                revised = self._parse_spec_json(raw)
+            except Exception as e:                      # a failed repair must never make things worse
+                logger.warning("Build-Reparatur Runde %d, Versuch %d: %s", round_no, attempt + 1, str(e)[:120])
+                continue
+            if self._validate_spec(revised):
+                return revised
+        return spec
+
     # ── Phase 1: Spec-Generierung ─────────────────────────────────────────────
 
     def _generate_spec(
@@ -353,13 +382,9 @@ class TwoPhaseGenerator:
         previous_error: Optional[str] = None,
     ) -> tuple[Dict, int]:
         """
-        Ruft Ollama mit format='json' auf → garantiert valides JSON zurück.
-
-        Ollama's JSON-Modus:
-          Wenn format="json" gesetzt ist, erzwingt Ollama grammatikbasiertes
-          Constrained Decoding: das Modell kann keinen syntaktisch invaliden
-          JSON produzieren. Dies eliminiert die häufigste Fehlerquelle bei
-          LLM-generierten strukturierten Outputs.
+        Phase 1: asks Ollama for the workflow spec with a JSON schema (`format=SPEC_SCHEMA`, constrained decoding), so the answer is
+        valid JSON that only contains activity and variable types the compiler implements. (Until 24 Nov 2026 this call passed
+        format="json", but the client dropped the parameter, so nothing was ever constrained; see tests/test_ollama_payload.py.)
         """
         model = self._resolve_model()
         prompt = self._build_spec_prompt(task, category, requirements)

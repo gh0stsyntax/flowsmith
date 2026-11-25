@@ -5,6 +5,9 @@ a deterministic compiler writes the XAML) followed by targeted repair. `--strate
 direct generation, which the benchmark shows is much weaker.
 
     python scripts/generate.py --task "Move every PDF from an inbox folder to an archive folder" --output out.xaml --validate
+
+With `--build-check` the result is built with the real UiPath CLI; build errors are fed back to the model (at most
+`--repair-rounds`, default 2) and the workflow is compiled again. Needs the UiPath CLI (`uip`), see scripts/uipath_build_check.py.
 """
 import argparse
 import logging
@@ -31,6 +34,8 @@ def build_parser():
                         help='two-phase = spec -> compiler (+ repair), default; baseline = direct generation')
     parser.add_argument('--seed', type=int, default=None, help='sampling seed (default: the generator default)')
     parser.add_argument('--no-repair', action='store_true', help='skip the targeted repair step (two-phase only)')
+    parser.add_argument('--build-check', action='store_true', help='build with the UiPath CLI and repair from the build errors (two-phase only)')
+    parser.add_argument('--repair-rounds', type=int, default=2, help='max. repair rounds with --build-check (default 2)')
     parser.add_argument('--validate', action='store_true', help='print the validation report')
     parser.add_argument('--llm-review', action='store_true', help='enable LLM review (baseline only)')
     parser.add_argument('--batch', type=str, help='File with tasks (one per line, # = comment)')
@@ -38,17 +43,41 @@ def build_parser():
     return parser
 
 
-def generate_two_phase(task, args):
+class BuildToolMissing(RuntimeError):
+    pass
+
+
+def _finish(xaml, args):
+    """Targeted repair of validator findings (unless --no-repair) and the validation report of the result."""
     from src.generation.surgical_repair import SurgicalRepair
+    from src.validation.validator import XAMLValidator
+    if args.no_repair:
+        return xaml, XAMLValidator().validate(xaml)
+    name = (re.search(r'x:Class="([^"]+)"', xaml) or [None, 'Workflow'])[1]
+    xaml, _report, validation = SurgicalRepair().repair_and_validate(xaml, name)
+    return xaml, validation
+
+
+def generate_two_phase(task, args):
     from src.generation.two_phase_generator import TwoPhaseGenerator
-    result = (TwoPhaseGenerator(seed=args.seed) if args.seed is not None else TwoPhaseGenerator()).generate(task_description=task, category=args.category,
-                                          additional_requirements=args.requirements, max_spec_attempts=args.attempts)
-    xaml, validation = result['xaml_content'], result['validation']
-    if not args.no_repair:
-        name = (re.search(r'x:Class="([^"]+)"', xaml) or [None, 'Workflow'])[1]
-        xaml, _report, validation = SurgicalRepair().repair_and_validate(xaml, name)
+    gen = TwoPhaseGenerator(seed=args.seed) if args.seed is not None else TwoPhaseGenerator()
+    result = gen.generate(task_description=task, category=args.category,
+                          additional_requirements=args.requirements, max_spec_attempts=args.attempts)
+    xaml, validation = _finish(result['xaml_content'], args)
+    build = None
+    if args.build_check:
+        from src.generation.build_repair import feedback_loop
+        from src.validation.uipath_build import UipathBuilder
+        builder = UipathBuilder()
+        if not builder.available():
+            raise BuildToolMissing("--build-check needs the UiPath CLI 'uip' (npm i -g @uipath/cli) and UiPath Studio.")
+        with builder:
+            build = feedback_loop(builder.build, lambda spec: _finish(gen.compile_spec(spec), args)[0],
+                                  lambda spec, errors, n: gen.revise_spec(task, result.get('category'), spec, errors, n),
+                                  result['spec'], args.repair_rounds)
+        xaml, validation = _finish(build['xaml'], argparse.Namespace(no_repair=True))   # already post-processed inside the loop
     return {'xaml_content': xaml, 'validation': validation, 'score': validation.get('total_score', result.get('score', 0)),
-            'attempt': 1, 'output_path': result.get('output_path'), 'suggestions': validation.get('suggestions', [])}
+            'attempt': 1, 'output_path': result.get('output_path'), 'suggestions': validation.get('suggestions', []), 'build': build}
 
 
 def generate_baseline(task, args):
@@ -64,6 +93,8 @@ def main(argv=None):
     if not args.task and not args.batch:
         parser.print_help()
         return 1
+    if args.build_check and args.strategy != 'two-phase':
+        parser.error("--build-check works with --strategy two-phase only")
 
     def process_task(task):
         if not args.quiet:
@@ -73,6 +104,15 @@ def main(argv=None):
         if not args.quiet:
             mark = "OK" if result['validation'].get('passed') else "WARN"
             logger.info(f"{mark} score {result['score']}/100 | attempts: {result.get('attempt', 1)}")
+
+        build = result.get('build')
+        if build:                                    # always visible, also with --quiet: a failed build must not pass silently
+            used = build['repair_rounds_used']
+            logger.info("Build history: " + " -> ".join("OK" if h['ok'] else "FAIL" for h in build['history']))
+            if build['ok']:
+                logger.info(f"UiPath build: OK" + (f" (after {used} repair round{'s' if used != 1 else ''})" if used else ""))
+            else:
+                logger.warning(f"UiPath build: FAILED after {used} repair round(s): " + "; ".join(build['history'][-1]['errors'][:3]))
 
         if args.output:
             Path(args.output).write_text(result['xaml_content'], encoding='utf-8')
@@ -96,7 +136,8 @@ def main(argv=None):
 
     try:
         if args.task:
-            process_task(args.task)
+            result = process_task(args.task)
+            return 0 if not result.get('build') or result['build']['ok'] else 1
         else:
             batch_file = Path(args.batch)
             if not batch_file.exists():
@@ -109,11 +150,17 @@ def main(argv=None):
             for i, task in enumerate(tasks, 1):
                 logger.info(f"[{i}/{len(tasks)}] {task[:60]}...")
                 try:
-                    process_task(task)
+                    r = process_task(task)
+                    failed += bool(r.get('build') and not r['build']['ok'])
+                except BuildToolMissing:
+                    raise
                 except Exception as e:  # one failing task must not stop the batch
                     failed += 1
                     logger.error(f"Failed: {e}")
             return 1 if failed else 0
+    except BuildToolMissing as e:
+        logger.error(str(e))
+        return 2
     except RuntimeError as e:
         logger.error(f"Generation failed: {e}")
         return 1

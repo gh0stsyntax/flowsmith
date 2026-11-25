@@ -44,44 +44,55 @@ An earlier run (18 June, 8 tasks, different model settings) was much weaker for 
 > UiPath toolchain in November 2026, they did not load (wrong type syntax, a legacy VB settings block, invalid
 > activity properties, undeclared variables ...). The compiler was fixed accordingly — see below.
 
-## Does the output really build in UiPath? (checked 24 Nov 2026)
+## Does the output really build in UiPath? (checked 24–25 Nov 2026)
 
 `scripts/uipath_build_check.py` puts every XAML into a blank UiPath project and runs `uip rpa build`
-(compilation + Workflow Analyzer, UiPath CLI 1.206).
+(compilation + Workflow Analyzer, UiPath CLI 1.206). The same code (`src/validation/uipath_build.py`) drives the optional
+repair loop `scripts/generate.py --build-check`.
 
 | Check | Result |
 |---|---|
-| Compiler, 6 activity groups (core/assign, files, Excel, mail, web, HTTP) | **6/6 build** |
-| End-to-end on **8 tasks I had never seen while building the compiler** × 2 seeds (16 runs): task → local LLM (qwen3:14b) → XAML → UiPath build | **9/16 build (56 %)** — small sample, so anything from roughly 30 % to 80 % is consistent with it |
-| End-to-end on the 5 tasks I developed against | 5/5 build — **optimistic**, the compiler was tuned on exactly these |
-| Same 20 mixed runs (10 tasks × 2 seeds) before and after fixing three error classes found in them | 7/20 (35 %) → 14/20 (70 %). The fixes were derived from these runs, so 70 % is an upper bound, not the expected rate |
-| Compiler with `If` / `ForEach` / JSON access (hand-written spec, no LLM) | builds, 0 placeholders |
-| Regression tests (`tests/`, no UiPath, no LLM) | 67 passed; GitHub Actions runs them on Python 3.10 and 3.12 |
+| Every activity template built on its own (`scripts/template_smoke_test.py`) | **25/28** (the other 3 need context: a SAP/application scope, a selector) |
+| End-to-end on the 5 tasks I developed against | 5/5 — **optimistic**, the compiler was tuned on exactly these |
+| Fresh task set 1 (8 new tasks × 2 seeds), 24 Nov, before the fixes below | 9/16 (56 %) |
+| Fresh task set 2 (8 new tasks × 2 seeds), 25 Nov, before the template fixes of that day | 7/16 (43 %) |
+| Fresh task set 3 (8 new tasks × 2 seeds), 25 Nov, after the fixes | **14/16 (87 %)** |
+| Build-feedback repair loop (`--build-check`, up to 2 rounds), sets 2 and 3 | rescued 1 of 32 runs (3 %): no meaningful gain |
+| Regression tests (`tests/`, no LLM; GitHub Actions on Python 3.10 and 3.12) | 103 passed; one more test builds PDF/SQL workflows with the real toolchain when `uip` is installed |
 
-How I measured: `scripts/generate.py --task ... --seed N`, then `scripts/uipath_build_check.py` on all outputs. A run counts
-as "builds" only if `uip rpa build` reports no error; warnings are ignored. With a fixed seed the output is
-reproducible, so repeating a seed adds no information (my first "3 rounds" were identical copies — I only noticed
-after the seed was actually forwarded to Ollama, see below).
+**How to read these numbers.** The sets were measured one after another and the fixes were derived from failures in sets 1 and 2,
+so set 3 is *not* an independent estimate: its tasks (files, API, database, mail, credentials) are exactly the areas that were just
+repaired, and Excel tasks failed in every set. A realistic expectation for new tasks lies between the earlier 43–56 % and the
+latest 87 %, and each figure comes from only 16 runs. A run counts as "builds" only if `uip rpa build` reports no error;
+warnings are ignored. With a fixed seed the output is reproducible (`scripts/generate.py --seed N`), so repeating a seed adds no information.
+
+**What the real build found** (all fixed, each with a regression test): templates that did not match what UiPath itself generates
+(`uip rpa activities get-default-xaml`): `ReadPDFText.PDFPath` (is `FileName`), a database activity that does not exist (`ui:Connect`),
+`ExecuteQuery` with a result element UiPath does not know, `AddQueueItem.QueueName` (is `QueueType`), a password variable typed `String`
+instead of `SecureString`; literal paths and texts wrapped in brackets as if they were expressions; VB pitfalls (`Format(...)` collides
+with a UiPath namespace, `Split(",")` picks the Char overload); a log text such as `[Name] Date: [DateTime.Now...]` read as one expression;
+and my own test setup, which did not add the PDF and database packages, so those tasks could never build.
 
 Building is **not** the same as running: selectors are placeholders, credentials/servers are examples, and the
 process logic needs a human review in Studio.
 
-**Known limits (measured on 24 Nov 2026):**
+**Known limits:**
 
-- About four in ten generated workflows on unseen tasks still fail the UiPath build. Typical causes: variables used
-  before they are declared, a JSON value used as `Object` where `String` is required, a `String` used where a list is
-  expected, lambda variable names that clash, `System.Data` used as an expression.
-- Activity types the compiler does not implement become a visible `[TODO: Implementieren]` log step instead of silent
-  nothing: 3 such steps in 16 files. `examples/generated/api_status.xaml` contains two of them.
-- Two bugs made earlier numbers meaningless and are fixed (tests in `tests/test_ollama_payload.py`,
-  `tests/test_spec_compiler.py`): the Ollama client silently dropped `format` and `seed` (so the documented "JSON mode"
-  and reproducible seeds never existed), and the compiler silently replaced model output with defaults when the model
-  wrote property names in PascalCase. Phase 1 now uses a JSON schema (`src/generation/spec_schema.py`) so the model can
-  only pick activity and variable types the compiler implements.
-- `If` and `ForEach` are compiled (child steps are referenced by id), but the prompt does not teach the model that
-  format. I tried a longer prompt that did: it scored 7/15, worse than before, and I dropped it
-  (small sample, so "probably worse" rather than proven). A better route is probably few-shot examples or
-  constrained JSON output; not done.
+- Excel tasks still fail (type mix-ups such as `Double` where `String` is required, members used on strings).
+- The remaining failures are mostly model-side: variables used before they are declared, a JSON value used as `Object` where
+  `String` is required, a `String` used where a list is expected.
+- Not offered to the model because they do not exist in the installed packages or cannot be typed by the compiler:
+  `AttachWindow`, `GetMailMessages`, `ConnectToDatabase` (use `ExecuteQuery`, which opens its own connection). `SAPTransaction` and
+  `OpenApplication` compile but must be placed in the right scope by the model; I could not test SAP.
+- The repair loop is **opt-in** because it did not measurably help; the cause was in the templates, not in what the model could fix.
+  Its first version also exposed that the model sometimes answers a repair request with unreadable JSON ("token repeat limit
+  reached"), which now gets one retry with another seed.
+- Two bugs made earlier numbers meaningless and are fixed (tests in `tests/test_ollama_payload.py`, `tests/test_spec_compiler.py`):
+  the Ollama client silently dropped `format` and `seed` (so the documented "JSON mode" and reproducible seeds never existed), and the
+  compiler silently replaced model output with defaults when the model wrote property names in PascalCase. Phase 1 now uses a JSON
+  schema (`src/generation/spec_schema.py`) so the model can only pick activity and variable types the compiler implements.
+- `If` and `ForEach` are compiled (child steps are referenced by id), but the prompt does not teach the model that format. A longer
+  prompt that did scored worse (7/15) and was dropped; few-shot examples are untested.
 - Fine-tuning was only tried on a very small dataset; the benchmark effect comes from the two-phase design.
 - The desktop app and the web UI were not click-tested; the API is covered by `tests/test_api_security.py`.
 

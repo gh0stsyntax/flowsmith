@@ -11,10 +11,10 @@ from typing import Any, Dict
 # Activity types the spec compiler renders (activity_templates.render_activity_xml + If/ForEach in spec_compiler).
 SPEC_ACTIVITY_TYPES = (
     "LogMessage", "Assign", "If", "ForEach",
-    "Click", "TypeInto", "GetText", "WaitForElement", "OpenBrowser", "CloseBrowser", "NavigateTo", "AttachWindow", "TakeScreenshot",
+    "Click", "TypeInto", "GetText", "WaitForElement", "OpenBrowser", "CloseBrowser", "NavigateTo", "TakeScreenshot",
     "ReadRange", "WriteRange", "ExcelApplicationScope", "ForEachRow",
-    "GetMailMessages", "SendMail",
-    "ExecuteQuery", "ConnectToDatabase",
+    "SendMail",
+    "ExecuteQuery",
     "HttpClient",
     "ReadTextFile", "WriteTextFile", "CopyFile", "MoveFile",
     "AddQueueItem", "GetQueueItem", "SetTransactionStatus", "GetRobotCredential",

@@ -115,6 +115,10 @@ _VB_KNOWN = {
 def _infer_type(name: str, assigned: Optional[str] = None) -> str:
     """Type for an auto-declared variable: from its prefix, else from the value assigned to it, else String."""
     n = name.lower()
+    if "password" in n or "securestring" in n:
+        return "ss:SecureString"                          # GetRobotCredential.Password is a SecureString (BC30311 with String)
+    if "transactionitem" in n or "queueitem" in n:
+        return "ui:QueueItem"                             # GetQueueItem/SetTransactionStatus work on a QueueItem
     for prefix, typ in (("str", "x:String"), ("int", "x:Int32"), ("cnt", "x:Int32"), ("num", "x:Int32"),
                         ("dbl", "x:Double"), ("dec", "x:Decimal"), ("bool", "x:Boolean"), ("is", "x:Boolean"),
                         ("has", "x:Boolean"), ("dt", "sd:DataTable"), ("arr", "s:String[]"), ("list", "scg:List(x:String)")):
@@ -473,7 +477,7 @@ class SpecCompiler:
                 browser_idx = None                       # Scope endet; CloseTab bleibt ausserhalb
             if act.type == "Assign" and not props.get("type"):
                 # Typ aus Zielvariable/-argument ableiten (sonst Object -> Int32 = Compilerfehler in Studio)
-                ziel = str(props.get("to") or "").strip("[] ")
+                ziel = str(props.get("to") or "[str_Result]").strip("[] ")     # same default target as the Assign template
                 typen = {v.name: v.type for v in ws.variables}
                 typen.update({a.name: a.type for a in ws.arguments})
                 if ziel in typen:
@@ -516,7 +520,7 @@ class SpecCompiler:
                 continue
             props = dict(a.props or {})
             if a.type == "Assign" and not props.get("type"):
-                ziel = str(props.get("to") or "").strip("[] ")
+                ziel = str(props.get("to") or "[str_Result]").strip("[] ")
                 typen = {v.name: v.type for v in ws.variables}
                 typen.update({x.name: x.type for x in ws.arguments})
                 if ziel in typen:

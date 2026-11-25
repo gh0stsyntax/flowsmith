@@ -25,6 +25,10 @@ def csharp_to_vb(expr: str) -> str:
     s = s.replace("&&", " AndAlso ").replace("||", " OrElse ")
     s = _re.sub(r"(?<![=!<>])==(?!=)", " = ", s).replace("!=", " <> ")
     s = _re.sub(r"!(?=[A-Za-z_(])", "Not ", s)
+    # VB pitfalls seen in real builds (25 Nov 2026): Format(...) resolves to the UiPath.Core.Format namespace (BC30112);
+    # String.Split("x") picks the Char() overload (BC30512 String -> Char).
+    s = _re.sub(r'\bFormat\(\s*([A-Za-z_][\w.]*)\s*,\s*("[^"]*")\s*\)', r"\1.ToString(\2)", s)
+    s = _re.sub(r'\.Split\(\s*"([^"])"\s*\)', r'.Split("\1"c)', s)
     return _re.sub(r"\s{2,}", " ", s).strip()
 
 
@@ -35,12 +39,35 @@ def _expr(s: str) -> str:
 
 
 def _vb(text: str) -> str:
-    """Log/message text -> escaped VB string expression. Text that is already a full [expression] is kept;
-    plain text (even if it starts with '[Workflow] ...') becomes a string literal so it compiles."""
+    """Log/message text -> escaped VB string expression.
+    * `[expr]` as a whole (one bracket group, e.g. `["Done " + x.ToString]`) is an expression and kept;
+    * text with embedded groups becomes a concatenation: `[Workflow] Count: [n] on [DateTime.Now.ToString("d")]` ->
+      `"[Workflow] Count: " & n & " on " & DateTime.Now.ToString("d")`. A leading plain `[Name]` is the workflow-name prefix
+      and stays literal; later `[identifier]` and any `[a.b(c)]` are expressions. Before, a text that merely began with `[`
+      and ended with `]` was taken for one expression (BC30034/BC30198);
+    * anything else is a string literal."""
+    import re as _re
     s = str(text)
-    inner = s[1:-1] if s.startswith("[") and s.endswith("]") else ""
-    if inner and ('"' in inner or "+" in inner or "." in inner and " " not in inner):
-        return _a(s)
+    if _re.fullmatch(r"\[[^\[\]]*\]", s):
+        inner = s[1:-1]
+        if inner and ('"' in inner or "+" in inner or "." in inner and " " not in inner):
+            return _a(csharp_to_vb(s[1:-1]).join("[]"))
+    parts = _re.split(r"(\[[^\[\]]+\])", s)
+    if len(parts) > 1:
+        out, has_expr, first = [], False, True                       # re.split yields '' before a leading group
+        for part in parts:
+            if part == "":
+                continue
+            k, first = (0 if first else 1), False                   # k == 0: the first non-empty part (workflow-name prefix)
+            m = _re.fullmatch(r"\[([^\[\]]+)\]", part)
+            chain = m and _re.fullmatch(r"[A-Za-z_]\w*(?:\.\w+|\([^()]*\))*", m.group(1).strip())
+            if chain and not (k == 0 and _re.fullmatch(r"[A-Za-z_]\w*", m.group(1).strip())):
+                out.append(csharp_to_vb(m.group(1).strip()))
+                has_expr = True
+            else:
+                out.append('"' + part.replace('"', '""') + '"')
+        if has_expr:
+            return _a("[" + " & ".join(out) + "]")
     return _a("[" + '"' + s.replace('"', '""') + '"' + "]")
 
 
@@ -63,6 +90,23 @@ def assign_value_to_vb(value: str, string_target: bool = False) -> str:
         if _re.match(r"^[A-Za-z]:[\\/]", s) or _re.match(r"^(https?|ftp)://", s) or _re.fullmatch(r"[\w .-]+\.(txt|csv|xlsx?|pdf|json|xml|log)", s):
             return '"' + s.replace('"', '""') + '"'
     return s
+
+
+def _path_expr(s: str) -> str:
+    """File/folder argument: [expression] stays, a bare identifier is a variable, anything else (C:\\dir\\a.txt, report.pdf,
+    https://...) is a literal and gets quoted. Before this, `[C:\\dir\\a.txt]` reached the compiler (BC30035 Syntax error)."""
+    import re as _re
+    s = str(s).strip()
+    if s.startswith("[") and s.endswith("]"):
+        return s
+    if _re.fullmatch(r"[A-Za-z_]\w*", s):
+        return f"[{s}]"
+    return '["' + s.replace('"', '""') + '"]'
+
+
+def _text_expr(s: str) -> str:
+    """Text argument (what gets written/sent): [expression] stays, a bare identifier is a variable, other text is a string literal."""
+    return _path_expr(s)
 
 
 def _vb_or_expr(s: str) -> str:
@@ -202,11 +246,6 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
       </ui:ForEachRow>"""
 
     # ── Mail ─────────────────────────────────────────────────────────────────
-    if t == "GetMailMessages":
-        folder = props.get("mail_folder") or "Inbox"
-        out_var = props.get("output_messages") or "[list_Mails]"
-        return f"""      <ui:GetMailMessages DisplayName="{_a(dn)}" MailFolder="{_a(folder)}" OutputMessages="{out_var}" Top="30" />"""
-
     if t == "SendMail":
         to_addr = props.get("to") or "user@example.com"
         subj = props.get("subject") or "[str_Subject]"
@@ -224,13 +263,14 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
 
     # ── Orchestrator ───────────────────────────────────────────────────────────
     if t == "AddQueueItem":
-        qn = props.get("queue_name") or "[in_QueueName]"
-        return f"""      <ui:AddQueueItem DisplayName="{_a(dn)}" QueueName="{qn}" Reference="{{x:Null}}" />"""
+        # UiPath default XAML: QueueType (not QueueName), Priority; the old template used QueueName -> "Cannot set unknown member"
+        qn = props.get("queue_name") or props.get("queue") or "[in_QueueName]"
+        return f"""      <ui:AddQueueItem DisplayName="{_a(dn)}" QueueType="{_a(_vb_or_expr(qn))}" Priority="Normal" />"""
 
     if t == "GetQueueItem":
-        qn = props.get("queue_name") or "[in_QueueName]"
+        qn = props.get("queue_name") or props.get("queue") or "[in_QueueName]"
         out_item = props.get("transaction_item") or "[out_TransactionItem]"
-        return f"""      <ui:GetQueueItem DisplayName="{_a(dn)}" QueueName="{qn}" TransactionItem="{out_item}" />"""
+        return f"""      <ui:GetQueueItem DisplayName="{_a(dn)}" QueueType="{_a(_vb_or_expr(qn))}" TransactionItem="{_a(_expr(out_item))}" />"""
 
     if t == "SetTransactionStatus":
         item = props.get("transaction_item") or "[io_TransactionItem]"
@@ -244,32 +284,34 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
     if t == "ReadTextFile":
         p = props.get("path") or "[in_FilePath]"
         content = props.get("content") or "[str_FileContent]"
-        return f"""      <ui:ReadTextFile DisplayName="{_a(dn)}" FileName="{_a(_expr(p))}" Content="{_a(_expr(content))}" />"""
+        return f"""      <ui:ReadTextFile DisplayName="{_a(dn)}" FileName="{_a(_path_expr(p))}" Content="{_a(_expr(content))}" />"""
 
     if t == "WriteTextFile":
         p = props.get("path") or "[in_FilePath]"
         content = props.get("content") or "[str_FileContent]"
-        return f"""      <ui:WriteTextFile DisplayName="{_a(dn)}" FileName="{_a(_expr(p))}" Text="{_a(_expr(content))}" />"""
+        return f"""      <ui:WriteTextFile DisplayName="{_a(dn)}" FileName="{_a(_path_expr(p))}" Text="{_a(_text_expr(content))}" />"""
 
     if t == "CopyFile":
         src = props.get("source") or "[in_SourcePath]"
         dst = props.get("destination") or "[in_DestPath]"
-        return f"""      <ui:CopyFile DisplayName="{_a(dn)}" Path="{_a(_expr(src))}" Destination="{_a(_expr(dst))}" />"""
+        return f"""      <ui:CopyFile DisplayName="{_a(dn)}" Path="{_a(_path_expr(src))}" Destination="{_a(_path_expr(dst))}" />"""
 
     if t == "MoveFile":
         src = props.get("source") or "[in_SourcePath]"
         dst = props.get("destination") or "[in_DestPath]"
-        return f"""      <ui:MoveFile DisplayName="{_a(dn)}" Path="{_a(_expr(src))}" Destination="{_a(_expr(dst))}" />"""
+        return f"""      <ui:MoveFile DisplayName="{_a(dn)}" Path="{_a(_path_expr(src))}" Destination="{_a(_path_expr(dst))}" />"""
 
     if t in ("DeleteFile", "Delete"):
         p = props.get("path") or "[in_FilePath]"
-        return f"""      <ui:Delete DisplayName="{_a(dn)}" Path="{_a(_expr(p))}" />"""
+        return f"""      <ui:Delete DisplayName="{_a(dn)}" Path="{_a(_path_expr(p))}" />"""
 
     # ── PDF ───────────────────────────────────────────────────────────────────
     if t == "ReadPDFText":
-        pdf = props.get("pdf_path") or "[in_PdfPath]"
-        text_out = props.get("text_out") or "[out_PdfText]"
-        return f"""      <ui:ReadPDFText DisplayName="{_a(dn)}" PDFPath="{pdf}" Text="{text_out}" />"""
+        # Property names taken from `uip rpa activities get-default-xaml UiPath.PDF.Activities.ReadPDFText` (25 Nov 2026):
+        # the old template used PDFPath, which does not exist ("Cannot set unknown member").
+        pdf = props.get("pdf_path") or props.get("path") or props.get("file") or "[in_PdfPath]"
+        text_out = props.get("text_out") or props.get("text") or props.get("output") or "[out_PdfText]"
+        return f"""      <ui:ReadPDFText DisplayName="{_a(dn)}" FileName="{_a(_path_expr(pdf))}" Text="{_a(_expr(text_out))}" Range="All" />"""
 
     if t == "ExtractPDFPage":
         pdf = props.get("pdf_path") or "[in_PdfPath]"
@@ -279,18 +321,12 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
 
     # ── Database ────────────────────────────────────────────────────────────────
     if t in ("ExecuteQuery", "RunQuery"):
+        # Attributes as in UiPath's default XAML for UiPath.Database.Activities.ExecuteQuery (ContinueOnError, DataTable, Sql, TimeoutMS);
+        # the activity opens its own connection from ConnectionString + ProviderName.
         conn = props.get("connection_string") or "[in_ConnectionString]"
         sql = props.get("query") or props.get("sql") or "SELECT 1"
-        dt = props.get("data_table") or "[dt_QueryResult]"
-        return f"""      <ui:ExecuteQuery ContinueOnError="False" DisplayName="{_a(dn)}" ConnectionString="{conn}" Sql="{_a(sql)}" CommandType="Text" TimeoutMS="{timeout}">
-        <ui:ExecuteQuery.Result>
-          <OutArgument x:TypeArguments="sd:DataTable">{dt}</OutArgument>
-        </ui:ExecuteQuery.Result>
-      </ui:ExecuteQuery>"""
-
-    if t == "ConnectToDatabase":
-        conn = props.get("connection_string") or "[in_ConnectionString]"
-        return f"""      <ui:Connect DisplayName="{_a(dn)}" ConnectionString="{conn}" DatabaseConnection="[db_Connection]" ProviderName="System.Data.SqlClient" />"""
+        dt = props.get("data_table") or props.get("result") or "[dt_QueryResult]"
+        return f"""      <ui:ExecuteQuery ContinueOnError="False" DisplayName="{_a(dn)}" ConnectionString="{_a(_vb_or_expr(conn))}" ProviderName="System.Data.SqlClient" Sql="{_a(sql)}" DataTable="{_a(_expr(dt))}" TimeoutMS="{timeout}" />"""
 
     # ── SAP (modern uix — wie Studio für SAP GUI) ────────────────────────────
     if t in ("SAPTransaction", "NSAPCallTransaction"):
@@ -300,13 +336,6 @@ def render_activity_xml(activity_type: str, display_name: Optional[str], props: 
     if t in ("OpenApplication",):
         exe = props.get("file_path") or props.get("path") or "notepad.exe"
         return f"""      <ui:OpenApplication DisplayName="{_a(dn)}" FileName="{_a(exe)}" />"""
-
-    if t in ("AttachWindow",):
-        return f"""      <ui:AttachWindow DisplayName="{_a(dn)}" TimeoutMS="{timeout}">
-        <ui:AttachWindow.Target>
-          <ui:Target Selector="{sel_s}" />
-        </ui:AttachWindow.Target>
-      </ui:AttachWindow>"""
 
     if t == "TakeScreenshot":
         return f"""      <ui:TakeScreenshot DisplayName="{_a(dn)}" />"""
@@ -331,7 +360,6 @@ def activity_types_for_full_toolbox() -> list:
             + [
                 "LogMessage",
                 "WaitForElement",
-                "GetMailMessages",
                 "SendMail",
                 "HttpClient",
                 "HTTPRequest",
@@ -347,10 +375,8 @@ def activity_types_for_full_toolbox() -> list:
                 "ReadPDFText",
                 "ExtractPDFPage",
                 "ExecuteQuery",
-                "ConnectToDatabase",
                 "SAPTransaction",
                 "OpenApplication",
-                "AttachWindow",
                 "TakeScreenshot",
             ]
         )
