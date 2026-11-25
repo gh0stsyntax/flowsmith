@@ -1,5 +1,5 @@
 # Ollama Modelfile für UiPath XAML Specialist
-# Generiert automatisch von UiPath XAML ML System
+# Generated automatically by flowsmith
 
 FROM qwen3:14b
 

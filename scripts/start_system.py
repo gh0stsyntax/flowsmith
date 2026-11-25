@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 scripts/start_system.py
-Startet das UiPath XAML ML System (REST API + Web UI).
+Starts flowsmith (REST API + Web UI).
 """
 
 import argparse
@@ -32,8 +32,8 @@ logger = logging.getLogger("xaml_ml")
 
 BANNER = """\
 ─────────────────────────────────────────────
-  UiPath XAML ML System  v1.0.0
-  Masterthesis – Nico Vogel – HS Albstadt
+  flowsmith  v1.0.0
+  Master's thesis project – HS Albstadt-Sigmaringen
 ─────────────────────────────────────────────"""
 
 

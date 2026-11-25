@@ -1,5 +1,7 @@
 # flowsmith — LLM-generated UiPath workflows ("Automating the automation")
 
+[![tests](https://github.com/gh0stsyntax/flowsmith/actions/workflows/tests.yml/badge.svg)](https://github.com/gh0stsyntax/flowsmith/actions/workflows/tests.yml)
+
 Turn a plain-language task description into a runnable **UiPath XAML workflow** with a local LLM,
 then check and repair it automatically against RPA best practices.
 
@@ -139,7 +141,7 @@ figures/    thesis figures (architecture, LoRA, RAG, validation, case studies, a
 KI-gestützte Erzeugung von UiPath-Workflows aus Klartext: lokale LLMs (Ollama, Qwen), RAG, QLoRA-Feinabstimmung,
 zweistufige Generierung (Spezifikation → deterministischer Compiler), gezielte Reparatur und mehrstufige Validierung.
 Praxisteil meiner Masterarbeit. Die ursprünglichen Trainingsdaten (Workflows eines früheren Arbeitgebers) sind
-nicht enthalten. Startanleitung: [STARTEN.md](STARTEN.md).
+nicht enthalten. Startanleitung: [docs/STARTEN.md](docs/STARTEN.md).
 
 ## License
 

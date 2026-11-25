@@ -1,6 +1,6 @@
 """
 src/api/app.py
-REST API für das UiPath XAML ML System
+REST API of flowsmith
 """
 
 from flask import Flask, request, jsonify, send_file

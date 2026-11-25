@@ -128,7 +128,7 @@ class OllamaTrainer:
 
         modelfile_content = (
             f"# Ollama Modelfile für UiPath XAML Specialist\n"
-            f"# Generiert automatisch von UiPath XAML ML System\n\n"
+            f"# Generated automatically by flowsmith\n\n"
             f"FROM {self.ollama_config['primary_model']}\n\n"
             f"# ─── Parameter ───────────────────────────────────────────────\n"
             f"PARAMETER temperature 0.2\n"

@@ -1,4 +1,6 @@
-# XAML ML Generator — Startanleitung
+# flowsmith — Startanleitung (Kurzfassung, Deutsch)
+
+Die englische Kurzfassung steht im README unter „Quick start“. Diese Datei beschreibt dasselbe etwas ausführlicher.
 
 ## Einmalige Installation (ca. 20 Minuten)
 
