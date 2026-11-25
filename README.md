@@ -143,6 +143,8 @@ zweistufige Generierung (Spezifikation → deterministischer Compiler), gezielte
 Praxisteil meiner Masterarbeit. Die ursprünglichen Trainingsdaten (Workflows eines früheren Arbeitgebers) sind
 nicht enthalten. Startanleitung: [docs/STARTEN.md](docs/STARTEN.md).
 
+> **Provenance:** this repository is the maintained home of the project. Earlier copies of it under other, older GitHub accounts are obsolete and no longer updated.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Author: Nico Vogel ([@gh0stsyntax](https://github.com/gh0stsyntax)).
