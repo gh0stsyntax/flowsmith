@@ -243,3 +243,50 @@ def test_cli_build_check_only_for_the_two_phase_strategy(cli):
     with pytest.raises(SystemExit) as e:
         cli.main(["--task", "t", "--strategy", "baseline", "--build-check"])
     assert e.value.code == 2
+
+
+# --- 26 Nov 2026: with the optional package `json_repair` installed, text that is not JSON came back as '' and crashed _validate_spec
+# (AttributeError: 'str' has no attribute 'get') OUTSIDE the try/except of the repair loop. CI never saw it because CI does not install the package,
+# so these tests inject a stand-in for it and run the same on every machine.
+import sys as _sys
+import types as _types
+
+import pytest as _pytest
+
+
+@_pytest.fixture()
+def fake_json_repair(monkeypatch):
+    def install(result):
+        mod = _types.ModuleType("json_repair")
+        mod.json_repair = _types.SimpleNamespace(loads=lambda raw: result)
+        monkeypatch.setitem(_sys.modules, "json_repair", mod)
+    return install
+
+
+@_pytest.mark.parametrize("returned", ["", [], None, 5, "text"])
+def test_json_repair_returning_a_non_object_is_not_a_spec(gen, fake_json_repair, returned):
+    g, _ = gen
+    fake_json_repair(returned)
+    with _pytest.raises(ValueError, match="Kein valides JSON"):
+        g._parse_spec_json("this is not json")
+
+
+def test_json_repair_returning_an_object_is_still_used(gen, fake_json_repair):
+    g, _ = gen
+    fake_json_repair({"name": "n"})
+    assert g._parse_spec_json("{broken") == {"name": "n"}
+
+
+@_pytest.mark.parametrize("not_a_spec", ["", [], None, 5, "text", [{"name": "x"}]])
+def test_validate_spec_survives_any_type(gen, not_a_spec):
+    g, _ = gen
+    assert g._validate_spec(not_a_spec) is False
+
+
+@_pytest.mark.parametrize("returned", ["", []])
+def test_repair_keeps_the_old_spec_even_if_json_repair_is_installed(gen, fake_json_repair, returned):
+    g, _ = gen
+    fake_json_repair(returned)
+    old = {"name": "Old", "category": "c", "description": "d", "activities": [], "activity_order": []}
+    g._ollama_client.reply = "this is not json"
+    assert g.revise_spec("t", "c", old, ["BC1: x"]) == old

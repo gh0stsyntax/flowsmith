@@ -58,7 +58,7 @@ repair loop `scripts/generate.py --build-check`.
 | Fresh task set 2 (8 new tasks × 2 seeds), 25 Nov, before the template fixes of that day | 7/16 (43 %) |
 | Fresh task set 3 (8 new tasks × 2 seeds), 25 Nov, after the fixes | **14/16 (87 %)** |
 | Build-feedback repair loop (`--build-check`, up to 2 rounds), sets 2 and 3 | rescued 1 of 32 runs (3 %): no meaningful gain |
-| Regression tests (`tests/`, no LLM; GitHub Actions on Python 3.10 and 3.12) | 103 passed; one more test builds PDF/SQL workflows with the real toolchain when `uip` is installed |
+| Regression tests (`tests/`, no LLM; GitHub Actions on Python 3.10 and 3.12) | 117 passed; one more test builds PDF/SQL workflows with the real toolchain when `uip` is installed |
 
 **How to read these numbers.** The sets were measured one after another and the fixes were derived from failures in sets 1 and 2,
 so set 3 is *not* an independent estimate: its tasks (files, API, database, mail, credentials) are exactly the areas that were just

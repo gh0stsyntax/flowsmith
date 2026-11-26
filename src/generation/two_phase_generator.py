@@ -455,6 +455,9 @@ class TwoPhaseGenerator:
         Minimale strukturelle Validierung des generierten Spec.
         Prüft Pflichtfelder und ob mindestens eine Aktivität definiert ist.
         """
+        if not isinstance(spec, dict):
+            logger.warning("Spec ist kein Objekt: %s", type(spec).__name__)
+            return False
         required = ['name', 'category', 'activities', 'activity_order']
         for field in required:
             if not spec.get(field):
@@ -500,7 +503,9 @@ class TwoPhaseGenerator:
             pass
         try:
             from json_repair import json_repair
-            return json_repair.loads(raw)
+            repaired = json_repair.loads(raw)
+            if isinstance(repaired, dict):           # json_repair returns '' or [] for text that is not JSON at all: that is "no spec", not a spec
+                return repaired
         except ImportError:
             pass
             
