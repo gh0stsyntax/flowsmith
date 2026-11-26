@@ -52,7 +52,7 @@ repair loop `scripts/generate.py --build-check`.
 
 | Check | Result |
 |---|---|
-| Every activity template built on its own (`scripts/template_smoke_test.py`) | **25/28** (the other 3 need context: a SAP/application scope, a selector) |
+| Every activity template built on its own (`scripts/template_smoke_test.py`) | **26/28** (re-run on 26 Nov; the other 2 need context: a SAP/application scope, a selector) |
 | End-to-end on the 5 tasks I developed against | 5/5 — **optimistic**, the compiler was tuned on exactly these |
 | Fresh task set 1 (8 new tasks × 2 seeds), 24 Nov, before the fixes below | 9/16 (56 %) |
 | Fresh task set 2 (8 new tasks × 2 seeds), 25 Nov, before the template fixes of that day | 7/16 (43 %) |
